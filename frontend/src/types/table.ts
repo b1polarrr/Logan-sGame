@@ -9,6 +9,7 @@ export interface PlayerState {
   isOnline: boolean
   holeCards: string[]
   sessionProfit: number
+  isReady: boolean
 }
 
 export interface TableSnapshot {
@@ -74,6 +75,7 @@ function parsePlayerState(raw: Record<string, unknown>): PlayerState {
     isOnline: Boolean(raw.isOnline),
     holeCards: Array.isArray(holeCards) ? holeCards.map(String) : [],
     sessionProfit: Number(raw.sessionProfit ?? 0),
+    isReady: Boolean(raw.isReady ?? raw.is_ready),
   }
 }
 

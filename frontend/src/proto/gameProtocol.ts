@@ -11,6 +11,7 @@ export const ACTION_MAP = {
   LIST_ROOMS: 8,
   RECONNECT: 9,
   REBUY: 10,
+  READY: 11,
 } as const
 
 export const GAME_TYPE_MAP = {
@@ -38,6 +39,7 @@ enum ActionType {
   LIST_ROOMS = 8;
   RECONNECT = 9;
   REBUY = 10;
+  READY = 11;
 }
 message PlayerActionRequest {
   ActionType action_type = 1;
@@ -101,6 +103,7 @@ message PlayerState {
   bool is_online = 8;
   repeated string hole_cards = 9;
   int32 session_profit = 10;
+  bool is_ready = 11;
 }
 message TableSnapshotResponse {
   string room_id = 1;

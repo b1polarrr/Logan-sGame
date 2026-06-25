@@ -29,6 +29,7 @@ public class Player implements Serializable {
         this.isOnline = true;
         this.isReady = false;
         this.currentBet = 0;
+        this.isActive = chips > 0;
     }
 
     //重置每局的手牌和下注状态

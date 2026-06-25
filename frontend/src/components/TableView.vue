@@ -25,11 +25,59 @@ const emit = defineEmits<{
   call: []
   raise: [amount: number]
   rebuy: [amount: number]
+  ready: []
 }>()
 
 const rebuyDismissed = ref(false)
+const handEverStarted = ref(false)
 
 const isSeated = computed(() => props.mySeatIndex >= 0)
+
+const playersWithChips = computed(() =>
+  props.snapshot.players.filter((player) => player.chips > 0),
+)
+
+const needsReadyBeforeFirstHand = computed(
+  () =>
+    isSeated.value &&
+    !handEverStarted.value &&
+    props.snapshot.currentTurnIndex < 0 &&
+    !props.showdownResult &&
+    playersWithChips.value.length >= 2,
+)
+
+const canClickReady = computed(
+  () =>
+    needsReadyBeforeFirstHand.value &&
+    myPlayer.value != null &&
+    myPlayer.value.chips > 0 &&
+    !myPlayer.value.isReady,
+)
+
+const waitingOthersReady = computed(
+  () =>
+    needsReadyBeforeFirstHand.value &&
+    myPlayer.value != null &&
+    myPlayer.value.isReady,
+)
+
+watch(
+  () => props.snapshot.currentTurnIndex,
+  (turnIndex) => {
+    if (turnIndex >= 0) {
+      handEverStarted.value = true
+    }
+  },
+  { immediate: true },
+)
+
+watch(
+  () => props.snapshot.roomId,
+  () => {
+    handEverStarted.value = false
+    rebuyDismissed.value = false
+  },
+)
 
 const myPlayer = computed(() =>
   props.snapshot.players.find((player) => player.seatIndex === props.mySeatIndex),
@@ -405,6 +453,21 @@ watch(
         点击空位「坐下」加入牌局
       </div>
 
+      <div v-else-if="canClickReady" class="ready-row">
+        <button
+          type="button"
+          class="action-btn primary ready-btn"
+          :disabled="!connected"
+          @click="emit('ready')"
+        >
+          准备
+        </button>
+      </div>
+
+      <div v-else-if="needsReadyBeforeFirstHand" class="ready-waiting">
+        <span class="ready-waiting-text">等待全员准备后开局</span>
+      </div>
+
       <div v-else class="action-row">
         <button
           type="button"
@@ -476,10 +539,13 @@ watch(
 
       <p v-if="isSeated && isMyTurn" class="turn-tip active">轮到你了</p>
       <p v-else-if="isSeated && showdownResult" class="turn-tip">摊牌结算中…</p>
+      <p v-else-if="isSeated && canClickReady" class="turn-tip">点击「准备」开始本局</p>
+      <p v-else-if="isSeated && waitingOthersReady" class="turn-tip">已准备，等待其他玩家…</p>
       <p v-else-if="isSeated && snapshot.currentTurnIndex < 0 && snapshot.players.some((player) => player.chips === 0)" class="turn-tip">
         等待玩家补充筹码…
       </p>
-      <p v-else-if="isSeated && snapshot.currentTurnIndex < 0" class="turn-tip">本局结束，即将发牌…</p>
+      <p v-else-if="isSeated && snapshot.currentTurnIndex < 0 && handEverStarted" class="turn-tip">本局结束，即将发牌…</p>
+      <p v-else-if="isSeated && snapshot.currentTurnIndex < 0" class="turn-tip">等待开局…</p>
       <p v-else-if="isSeated" class="turn-tip">等待其他玩家…</p>
     </footer>
   </main>
@@ -762,6 +828,28 @@ watch(
   color: #7f8c8d;
   font-size: 14px;
   padding: 12px;
+}
+
+.ready-row {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0;
+}
+
+.ready-btn {
+  min-width: 140px;
+  padding: 14px 32px;
+  font-size: 15px;
+}
+
+.ready-waiting {
+  text-align: center;
+  padding: 12px;
+}
+
+.ready-waiting-text {
+  color: #95a5a6;
+  font-size: 14px;
 }
 
 .action-row {

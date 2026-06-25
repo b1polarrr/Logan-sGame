@@ -26,6 +26,7 @@ public class Table implements Serializable {
         this.pot = 0;
         this.currentMaxBet = 0;
         this.dealerIndex = 0;
+        this.currentTurnIndex = -1;
     }
 
     //玩家坐下

@@ -415,6 +415,10 @@ export function useGameSocket() {
     await sendAction('REBUY', { amount: amount ?? 1000 })
   }
 
+  async function ready() {
+    await sendAction('READY')
+  }
+
   function leaveTable() {
     inTable.value = false
     tableSnapshot.value = null
@@ -449,6 +453,7 @@ export function useGameSocket() {
     call,
     raiseBet,
     rebuy,
+    ready,
     leaveTable,
     backToLobby,
   }
