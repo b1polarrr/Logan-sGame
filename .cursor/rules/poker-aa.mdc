@@ -1,0 +1,29 @@
+---
+description: Poker_AA 项目协作约定与编码规范
+alwaysApply: true
+---
+
+# Poker_AA 开发约定
+
+完整说明见 [docs/开发约定.md](../../docs/开发约定.md)。新对话可 @ 该文件。
+
+## AI 协作
+
+- 手搓、一步一步、增量修改；不要默认整文件替换
+- 不要单独写「添加 import」步骤（IDEA Alt+Enter）
+- 与用户用简体中文交流
+
+## 命名
+
+- 除 Netty 的 `ctx` 外，变量/参数用全称：`gameManager`、`playerSession`、`roomId`
+- 禁止 `gm`、`ps` 等缩写
+- 单例：`SessionManager.getINSTANCE()`、`SnapshotBroadcaster.getINSTANCE()`；`RoomRouter.getInstance()`
+
+## 代码
+
+- 最小改动，匹配现有风格，不主动 git commit
+
+## 项目上下文
+
+- Java 17 + Netty + Protobuf 扑克后端；WebSocket 路径 `/ws` 端口 8888
+- 当前进度：引擎与 RoomRouter、SnapshotBroadcaster 已完成；待做 test.html 联调与 Vue 前端

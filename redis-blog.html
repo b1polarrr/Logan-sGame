@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Redis 学习笔记 · 从入门到实战</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&family=JetBrains+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #faf9f7;
+            --surface: #ffffff;
+            --text: #1c1917;
+            --text-muted: #78716c;
+            --accent: #dc2626;
+            --accent-soft: #fef2f2;
+            --border: #e7e5e4;
+            --code-bg: #292524;
+            --sidebar-width: 240px;
+            --content-width: 720px;
+            --radius: 8px;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: 'Inter', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.75;
+            font-size: 16px;
+        }
+
+        /* ── Header ── */
+        .site-header {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 1.25rem 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(8px);
+            background: rgba(255, 255, 255, 0.92);
+        }
+
+        .site-header-inner {
+            max-width: calc(var(--sidebar-width) + var(--content-width) + 6rem);
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .site-logo {
+            font-family: 'Noto Serif SC', serif;
+            font-weight: 700;
+            font-size: 1.1rem;
+            color: var(--text);
+            text-decoration: none;
+        }
+
+        .site-logo span { color: var(--accent); }
+
+        .site-meta {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        /* ── Layout ── */
+        .layout {
+            max-width: calc(var(--sidebar-width) + var(--content-width) + 6rem);
+            margin: 0 auto;
+            padding: 2.5rem 2rem 5rem;
+            display: grid;
+            grid-template-columns: var(--sidebar-width) 1fr;
+            gap: 3rem;
+            align-items: start;
+        }
+
+        /* ── Sidebar TOC ── */
+        .toc {
+            position: sticky;
+            top: 5rem;
+        }
+
+        .toc-title {
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 0.75rem;
+        }
+
+        .toc nav { display: flex; flex-direction: column; gap: 0.25rem; }
+
+        .toc a {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            text-decoration: none;
+            padding: 0.3rem 0.75rem;
+            border-radius: var(--radius);
+            border-left: 2px solid transparent;
+            transition: color 0.15s, background 0.15s, border-color 0.15s;
+        }
+
+        .toc a:hover,
+        .toc a.active {
+            color: var(--accent);
+            background: var(--accent-soft);
+            border-left-color: var(--accent);
+        }
+
+        /* ── Article ── */
+        .article {
+            max-width: var(--content-width);
+        }
+
+        .article-hero {
+            margin-bottom: 2.5rem;
+            padding-bottom: 2rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .article-tag {
+            display: inline-block;
+            background: var(--accent-soft);
+            color: var(--accent);
+            font-size: 0.8rem;
+            font-weight: 600;
+            padding: 0.25rem 0.75rem;
+            border-radius: 999px;
+            margin-bottom: 1rem;
+        }
+
+        .article-hero h1 {
+            font-family: 'Noto Serif SC', serif;
+            font-size: 2.25rem;
+            font-weight: 700;
+            line-height: 1.3;
+            margin-bottom: 1rem;
+        }
+
+        .article-lead {
+            font-size: 1.125rem;
+            color: var(--text-muted);
+            line-height: 1.7;
+        }
+
+        .article-info {
+            display: flex;
+            gap: 1.5rem;
+            margin-top: 1.25rem;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        /* ── Sections ── */
+        section { margin-bottom: 3rem; }
+
+        section h2 {
+            font-family: 'Noto Serif SC', serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid var(--border);
+        }
+
+        section h3 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin: 1.5rem 0 0.75rem;
+        }
+
+        p { margin-bottom: 1rem; }
+
+        ul, ol {
+            margin: 0 0 1rem 1.5rem;
+        }
+
+        li { margin-bottom: 0.4rem; }
+
+        strong { font-weight: 600; }
+
+        /* ── Callout ── */
+        .callout {
+            background: var(--accent-soft);
+            border-left: 4px solid var(--accent);
+            border-radius: 0 var(--radius) var(--radius) 0;
+            padding: 1rem 1.25rem;
+            margin: 1.5rem 0;
+            font-size: 0.95rem;
+        }
+
+        .callout-title {
+            font-weight: 600;
+            color: var(--accent);
+            margin-bottom: 0.4rem;
+        }
+
+        /* ── Code ── */
+        pre {
+            background: var(--code-bg);
+            color: #f5f5f4;
+            border-radius: var(--radius);
+            padding: 1.25rem 1.5rem;
+            overflow-x: auto;
+            margin: 1.25rem 0;
+            font-family: 'JetBrains Mono', 'Consolas', monospace;
+            font-size: 0.875rem;
+            line-height: 1.6;
+        }
+
+        code {
+            font-family: 'JetBrains Mono', 'Consolas', monospace;
+            font-size: 0.875em;
+        }
+
+        p code, li code {
+            background: #f5f5f4;
+            color: #b91c1c;
+            padding: 0.15em 0.4em;
+            border-radius: 4px;
+        }
+
+        .code-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-bottom: 0.4rem;
+            letter-spacing: 0.04em;
+        }
+
+        /* ── Table ── */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.25rem 0;
+            font-size: 0.9rem;
+        }
+
+        .data-table th {
+            background: #f5f5f4;
+            font-weight: 600;
+            text-align: left;
+            padding: 0.75rem 1rem;
+            border: 1px solid var(--border);
+        }
+
+        .data-table td {
+            padding: 0.75rem 1rem;
+            border: 1px solid var(--border);
+            vertical-align: top;
+        }
+
+        .data-table tr:nth-child(even) td { background: #fafaf9; }
+
+        /* ── Architecture diagram ── */
+        .diagram {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            line-height: 1.5;
+            overflow-x: auto;
+            white-space: pre;
+            color: #44403c;
+        }
+
+        /* ── Footer ── */
+        .article-footer {
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border);
+            color: var(--text-muted);
+            font-size: 0.875rem;
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 860px) {
+            .layout {
+                grid-template-columns: 1fr;
+                padding: 1.5rem 1.25rem 3rem;
+            }
+
+            .toc {
+                position: static;
+                background: var(--surface);
+                border: 1px solid var(--border);
+                border-radius: var(--radius);
+                padding: 1rem 1.25rem;
+            }
+
+            .article-hero h1 { font-size: 1.75rem; }
+        }
+    </style>
+</head>
+<body>
+
+<header class="site-header">
+    <div class="site-header-inner">
+        <a class="site-logo" href="#">Dev<span>Notes</span></a>
+        <span class="site-meta">2025 · 中间件学习系列</span>
+    </div>
+</header>
+
+<div class="layout">
+
+    <aside class="toc">
+        <div class="toc-title">目录</div>
+        <nav id="tocNav">
+            <a href="#intro">Redis 是什么</a>
+            <a href="#install">安装与启动</a>
+            <a href="#datatype">五种基本类型</a>
+            <a href="#commands">常用命令速查</a>
+            <a href="#persist">持久化机制</a>
+            <a href="#cache">缓存设计模式</a>
+            <a href="#cluster">高可用与集群</a>
+            <a href="#practice">实战练习</a>
+        </nav>
+    </aside>
+
+    <article class="article">
+
+        <header class="article-hero">
+            <span class="article-tag">Redis · 学习笔记</span>
+            <h1>Redis 学习笔记：从入门到实战</h1>
+            <p class="article-lead">
+                Redis（Remote Dictionary Server）是一款开源的内存键值数据库，以极高的读写性能著称。
+                本文系统梳理 Redis 的核心概念、数据类型、持久化策略与缓存实践，适合后端开发者入门与复习。
+            </p>
+            <div class="article-info">
+                <span>阅读约 15 分钟</span>
+                <span>难度：入门 → 进阶</span>
+            </div>
+        </header>
+
+        <!-- ── 1. 简介 ── -->
+        <section id="intro">
+            <h2>1. Redis 是什么</h2>
+            <p>
+                Redis 由 Salvatore Sanfilippo 于 2009 年发布，基于 <strong>C 语言</strong>编写，
+                数据全部存储在内存中，因此单线程模型下也能达到 <strong>10 万+ QPS</strong> 的读写吞吐。
+                它支持多种数据结构，并提供持久化、主从复制、哨兵、集群等企业级特性。
+            </p>
+
+            <h3>典型应用场景</h3>
+            <ul>
+                <li><strong>缓存</strong>：减轻 MySQL 等关系型数据库的读压力，是最常见的用法</li>
+                <li><strong>会话存储</strong>：保存用户登录态（Session / Token）</li>
+                <li><strong>排行榜</strong>：利用 Sorted Set 实现实时排名</li>
+                <li><strong>消息队列</strong>：List / Stream 实现简单的生产者-消费者模型</li>
+                <li><strong>分布式锁</strong>：<code>SET key value NX EX ttl</code> 实现互斥</li>
+                <li><strong>限流计数</strong>：滑动窗口、固定窗口计数器</li>
+            </ul>
+
+            <div class="callout">
+                <div class="callout-title">💡 为什么选 Redis 而不是 Memcached？</div>
+                Memcached 只支持简单的 KV 字符串，且没有持久化。
+                Redis 提供丰富的数据结构、持久化、发布订阅、Lua 脚本等能力，功能更全面，生态也更活跃。
+            </div>
+
+            <h3>单线程模型</h3>
+            <p>
+                Redis 6.0 之前，网络 I/O 与命令执行均在<strong>单线程</strong>中完成。
+                这意味着不需要加锁，避免了上下文切换开销，保证了命令的原子性。
+                Redis 6.0 引入了多线程 I/O（仅负责网络读写），命令执行仍是单线程。
+            </p>
+
+            <div class="diagram">┌─────────────┐     网络请求      ┌──────────────────────┐
+│   Client    │ ──────────────▶ │  Redis Server        │
+│  (Java/Go)  │ ◀────────────── │  ┌────────────────┐  │
+└─────────────┘     响应        │  │  事件循环       │  │
+                                │  │  (epoll/kqueue)│  │
+                                │  └───────┬────────┘  │
+                                │          ▼           │
+                                │  ┌────────────────┐  │
+                                │  │  命令处理器     │  │
+                                │  │  (单线程)       │  │
+                                │  └───────┬────────┘  │
+                                │          ▼           │
+                                │  ┌────────────────┐  │
+                                │  │  内存数据结构   │  │
+                                │  └────────────────┘  │
+                                └──────────────────────┘</div>
+        </section>
+
+        <!-- ── 2. 安装 ── -->
+        <section id="install">
+            <h2>2. 安装与启动</h2>
+
+            <h3>Docker 快速启动（推荐）</h3>
+            <div class="code-label">BASH</div>
+            <pre>docker run -d \
+  --name redis \
+  -p 6379:6379 \
+  redis:7-alpine \
+  redis-server --appendonly yes</pre>
+
+            <h3>连接测试</h3>
+            <div class="code-label">REDIS CLI</div>
+            <pre># 进入容器
+docker exec -it redis redis-cli
+
+# 测试连通性
+127.0.0.1:6379&gt; PING
+PONG
+
+# 设置并读取
+127.0.0.1:6379&gt; SET name "Redis Learner"
+OK
+127.0.0.1:6379&gt; GET name
+"Redis Learner"</pre>
+
+            <h3>Java 客户端（Lettuce）</h3>
+            <div class="code-label">JAVA</div>
+            <pre>// Maven 依赖
+// &lt;dependency&gt;
+//   &lt;groupId&gt;io.lettuce&lt;/groupId&gt;
+//   &lt;artifactId&gt;lettuce-core&lt;/artifactId&gt;
+//   &lt;version&gt;6.3.2.RELEASE&lt;/version&gt;
+// &lt;/dependency&gt;
+
+RedisClient redisClient = RedisClient.create("redis://localhost:6379");
+StatefulRedisConnection&lt;String, String&gt; connection = redisClient.connect();
+RedisCommands&lt;String, String&gt; commands = connection.sync();
+
+commands.set("player:1001", "Alice");
+String playerName = commands.get("player:1001"); // "Alice"
+
+connection.close();
+redisClient.shutdown();</pre>
+        </section>
+
+        <!-- ── 3. 数据类型 ── -->
+        <section id="datatype">
+            <h2>3. 五种基本数据类型</h2>
+            <p>Redis 的核心优势在于丰富的内置数据结构，每种类型对应不同的使用场景。</p>
+
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>类型</th>
+                        <th>说明</th>
+                        <th>典型场景</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>String</strong></td>
+                        <td>二进制安全的字符串，最大 512 MB</td>
+                        <td>缓存对象 JSON、计数器、分布式锁</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Hash</strong></td>
+                        <td>字段-值映射表</td>
+                        <td>存储用户信息、商品属性</td>
+                    </tr>
+                    <tr>
+                        <td><strong>List</strong></td>
+                        <td>双向链表，有序可重复</td>
+                        <td>消息队列、最新动态列表</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Set</strong></td>
+                        <td>无序集合，元素唯一</td>
+                        <td>标签、共同好友、去重</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Sorted Set</strong></td>
+                        <td>有序集合，每个元素带 score</td>
+                        <td>排行榜、延迟队列</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>String — 字符串</h3>
+            <div class="code-label">REDIS CLI</div>
+            <pre>SET counter 0
+INCR counter          # 原子自增 → 1
+INCRBY counter 10     # 加 10 → 11
+DECR counter          # 自减 → 10
+
+SET session:abc123 "userId=42" EX 3600   # 3600 秒后过期
+SET lock:order NX EX 30                    # 分布式锁，30 秒超时</pre>
+
+            <h3>Hash — 哈希表</h3>
+            <div class="code-label">REDIS CLI</div>
+            <pre>HSET user:1001 name "Alice" age 25 city "Shanghai"
+HGET user:1001 name          # "Alice"
+HGETALL user:1001            # 返回所有字段
+HINCRBY user:1001 age 1      # age → 26</pre>
+
+            <h3>List — 列表</h3>
+            <div class="code-label">REDIS CLI</div>
+            <pre>LPUSH queue:task "task-A" "task-B"   # 左侧入队
+RPOP queue:task                       # 右侧出队 → "task-A"
+LRANGE queue:task 0 -1               # 查看全部元素</pre>
+
+            <h3>Set — 集合</h3>
+            <div class="code-label">REDIS CLI</div>
+            <pre>SADD tags:article:1 "Java" "Redis" "Backend"
+SISMEMBER tags:article:1 "Redis"   # 1（存在）
+SINTER tags:article:1 tags:article:2  # 求交集</pre>
+
+            <h3>Sorted Set — 有序集合</h3>
+            <div class="code-label">REDIS CLI</div>
+            <pre>ZADD leaderboard 9800 "player_A" 8500 "player_B" 9200 "player_C"
+ZREVRANGE leaderboard 0 2 WITHSCORES   # 前三名
+# 1) "player_A"  2) "9800"
+# 3) "player_C"  4) "9200"
+# 5) "player_B"  6) "8500"
+ZINCRBY leaderboard 200 "player_B"     # 加分</pre>
+        </section>
+
+        <!-- ── 4. 命令速查 ── -->
+        <section id="commands">
+            <h2>4. 常用命令速查</h2>
+
+            <h3>键（Key）管理</h3>
+            <div class="code-label">REDIS CLI</div>
+            <pre>KEYS user:*          # 查找匹配的键（生产环境慎用，阻塞）
+SCAN 0 MATCH user:* COUNT 100   # 渐进式扫描，推荐
+EXISTS user:1001     # 判断键是否存在
+DEL user:1001        # 删除键
+EXPIRE user:1001 60  # 设置 60 秒过期
+TTL user:1001        # 查看剩余生存时间（秒）</pre>
+
+            <h3>事务</h3>
+            <p>Redis 事务通过 <code>MULTI / EXEC</code> 实现命令的批量执行，但不支持回滚。</p>
+            <div class="code-label">REDIS CLI</div>
+            <pre>MULTI
+SET account:A 900
+SET account:B 1100
+EXEC</pre>
+
+            <div class="callout">
+                <div class="callout-title">⚠️ 注意</div>
+                如果事务中某条命令语法错误，整个事务不会执行；
+                若运行时错误（如对 String 执行 LPUSH），其余命令仍会执行。
+                需要条件判断时使用 <strong>Lua 脚本</strong>或 <strong>WATCH</strong> 乐观锁。
+            </div>
+
+            <h3>发布 / 订阅</h3>
+            <div class="code-label">REDIS CLI</div>
+            <pre># 终端 A（订阅者）
+SUBSCRIBE room:666
+
+# 终端 B（发布者）
+PUBLISH room:666 "玩家 Alice 加入了房间"</pre>
+        </section>
+
+        <!-- ── 5. 持久化 ── -->
+        <section id="persist">
+            <h2>5. 持久化机制</h2>
+            <p>内存数据在重启后会丢失，Redis 提供两种持久化方式将数据写入磁盘。</p>
+
+            <h3>RDB（快照）</h3>
+            <p>
+                在指定时间间隔内，将内存数据的<strong>快照</strong>写入 <code>dump.rdb</code> 文件。
+                恢复速度快，但两次快照之间的数据可能丢失。
+            </p>
+            <div class="code-label">REDIS.CONF</div>
+            <pre>save 900 1      # 900 秒内至少 1 次写操作
+save 300 10     # 300 秒内至少 10 次
+save 60 10000   # 60 秒内至少 10000 次</pre>
+
+            <h3>AOF（追加文件）</h3>
+            <p>
+                将每条写命令追加到 <code>appendonly.aof</code> 文件。
+                数据完整性更高，但文件体积较大，恢复速度略慢。
+            </p>
+            <div class="code-label">REDIS.CONF</div>
+            <pre>appendonly yes
+appendfsync everysec   # 每秒 fsync 一次（推荐）
+# appendfsync always   # 每次写都 fsync，最安全但最慢
+# appendfsync no       # 由 OS 决定，最快但可能丢数据</pre>
+
+            <div class="callout">
+                <div class="callout-title">💡 生产建议</div>
+                通常同时开启 RDB + AOF：AOF 保证数据完整性，RDB 用于快速冷启动备份。
+                定期将 RDB 文件复制到异地存储。
+            </div>
+        </section>
+
+        <!-- ── 6. 缓存设计 ── -->
+        <section id="cache">
+            <h2>6. 缓存设计模式</h2>
+            <p>在后端系统中，Redis 最常见的角色是<strong>缓存层</strong>，位于应用与数据库之间。</p>
+
+            <div class="diagram">  请求                缓存命中              直接返回
+ Client ──▶ App ──▶ Redis ──────────────────────▶ Client
+                │         ▲
+                │  未命中  │ 写入缓存
+                ▼         │
+              MySQL ──────┘</div>
+
+            <h3>Cache-Aside（旁路缓存）</h3>
+            <p>最常用的模式，应用程序自行管理缓存与数据库的读写。</p>
+            <ul>
+                <li><strong>读</strong>：先查 Redis，miss 则查 DB，再写入 Redis</li>
+                <li><strong>写</strong>：先更新 DB，再删除（而非更新）Redis 中的缓存</li>
+            </ul>
+
+            <div class="code-label">JAVA 伪代码</div>
+            <pre>public User getUserById(long userId) {
+    String cacheKey = "user:" + userId;
+    String cached = redis.get(cacheKey);
+    if (cached != null) {
+        return JSON.parse(cached, User.class);
+    }
+    User user = userRepository.findById(userId);
+    if (user != null) {
+        redis.setex(cacheKey, 3600, JSON.stringify(user));
+    }
+    return user;
+}
+
+public void updateUser(User user) {
+    userRepository.save(user);
+    redis.del("user:" + user.getId());  // 删除缓存，非更新
+}</pre>
+
+            <h3>三大经典问题</h3>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>问题</th>
+                        <th>描述</th>
+                        <th>解决方案</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>缓存穿透</strong></td>
+                        <td>查询不存在的数据，每次都打到 DB</td>
+                        <td>缓存空值；布隆过滤器</td>
+                    </tr>
+                    <tr>
+                        <td><strong>缓存击穿</strong></td>
+                        <td>热点 Key 过期瞬间，大量请求涌向 DB</td>
+                        <td>互斥锁；逻辑过期（不设置 TTL）</td>
+                    </tr>
+                    <tr>
+                        <td><strong>缓存雪崩</strong></td>
+                        <td>大量 Key 同时过期，DB 压力骤增</td>
+                        <td>过期时间加随机偏移；多级缓存；限流降级</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- ── 7. 高可用 ── -->
+        <section id="cluster">
+            <h2>7. 高可用与集群</h2>
+
+            <h3>主从复制（Replication）</h3>
+            <p>
+                一个 Master 负责写，多个 Slave 负责读，Master 将写命令异步同步给 Slave。
+                Master 宕机后需手动或通过哨兵提升某个 Slave 为新 Master。
+            </p>
+            <div class="code-label">REDIS CLI</div>
+            <pre># 在 Slave 节点执行
+REPLICAOF 192.168.1.10 6379</pre>
+
+            <h3>哨兵（Sentinel）</h3>
+            <p>
+                哨兵是一组独立进程，监控 Master 和 Slave 的健康状态。
+                当 Master 不可达时，哨兵会自动进行<strong>故障转移（Failover）</strong>，
+                选举新的 Master 并通知客户端。
+            </p>
+
+            <h3>Cluster 集群</h3>
+            <p>
+                Redis Cluster 将数据划分为 <strong>16384 个哈希槽（slot）</strong>，
+                分布在多个 Master 节点上，每个 Master 可挂载 Slave。
+                客户端通过 <code>CRC16(key) mod 16384</code> 计算 slot，路由到对应节点。
+            </p>
+            <div class="code-label">BASH</div>
+            <pre># 创建 3 主 3 从集群
+redis-cli --cluster create \
+  127.0.0.1:7001 127.0.0.1:7002 127.0.0.1:7003 \
+  127.0.0.1:7004 127.0.0.1:7005 127.0.0.1:7006 \
+  --cluster-replicas 1</pre>
+        </section>
+
+        <!-- ── 8. 实战练习 ── -->
+        <section id="practice">
+            <h2>8. 实战练习</h2>
+            <p>以下练习由浅入深，建议在本地 Docker Redis 环境中动手完成。</p>
+
+            <h3>练习 1：实现一个简单的计数器</h3>
+            <p>用 String 类型实现文章阅读量统计，每次阅读 <code>INCR page:views:123</code>。</p>
+
+            <h3>练习 2：排行榜</h3>
+            <p>用 Sorted Set 维护游戏积分榜，实现 Top 10 查询与加分操作。</p>
+
+            <h3>练习 3：分布式锁</h3>
+            <div class="code-label">REDIS CLI</div>
+            <pre># 加锁（NX = Not eXists，EX = 过期秒数）
+SET lock:order:1001 "thread-42" NX EX 30
+
+# 释放锁（需验证 value 是自己的，防止误删）
+# 推荐用 Lua 脚本保证原子性
+EVAL "if redis.call('get', KEYS[1]) == ARGV[1] then
+        return redis.call('del', KEYS[1])
+      else return 0 end" 1 lock:order:1001 thread-42</pre>
+
+            <h3>练习 4：Session 缓存</h3>
+            <p>
+                模拟 Web 应用登录：登录成功后 <code>SET session:{token} {userId} EX 7200</code>，
+                每次请求携带 token，从 Redis 读取 userId，实现无状态服务的会话管理。
+            </p>
+
+            <div class="callout">
+                <div class="callout-title">📚 推荐资源</div>
+                <ul style="margin-bottom:0">
+                    <li>官方文档：<a href="https://redis.io/docs/" target="_blank">redis.io/docs</a></li>
+                    <li>命令参考：<a href="https://redis.io/commands/" target="_blank">redis.io/commands</a></li>
+                    <li>《Redis 设计与实现》— 黄健宏</li>
+                </ul>
+            </div>
+        </section>
+
+        <footer class="article-footer">
+            <p>本文仅供学习参考。如有错误或遗漏，欢迎指正。</p>
+        </footer>
+
+    </article>
+</div>
+
+<script>
+    // 滚动时高亮目录当前章节
+    const tocLinks = document.querySelectorAll('#tocNav a');
+    const sections = document.querySelectorAll('section[id]');
+
+    const observer = new IntersectionObserver(
+        (entries) => {
+            entries.forEach((entry) => {
+                if (entry.isIntersecting) {
+                    tocLinks.forEach((link) => link.classList.remove('active'));
+                    const active = document.querySelector(`#tocNav a[href="#${entry.target.id}"]`);
+                    if (active) active.classList.add('active');
+                }
+            });
+        },
+        { rootMargin: '-40% 0px -50% 0px' }
+    );
+
+    sections.forEach((section) => observer.observe(section));
+</script>
+
+</body>
+</html>

@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: poker-aa-nginx
+  namespace: poker-aa
+  labels:
+    app: poker-aa-nginx
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: poker-aa-nginx
+  template:
+    metadata:
+      labels:
+        app: poker-aa-nginx
+    spec:
+      containers:
+        - name: nginx
+          image: poker-aa/nginx:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+              name: http
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+      volumes:
+        - name: nginx-config
+          configMap:
+            name: poker-aa-nginx-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: poker-aa-nginx
+  namespace: poker-aa
+  labels:
+    app: poker-aa-nginx
+spec:
+  type: NodePort
+  selector:
+    app: poker-aa-nginx
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      nodePort: 30080

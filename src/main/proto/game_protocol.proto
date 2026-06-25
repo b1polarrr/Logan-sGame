@@ -1,0 +1,121 @@
+syntax = "proto3";
+
+package mercury.poker;
+
+// 配置生成的 Java 代码路径
+option java_multiple_files = true;
+option java_package = "com.mercury.poker.network.protocol";
+option java_outer_classname = "GameProtocolProtos";
+
+// 游戏类型（阶段 2：为多游戏扩展预留）
+enum GameType {
+  GAME_UNKNOWN = 0;
+  TEXAS_HOLDEM = 1;
+}
+
+// 1. 客户端发送给后端的指令类型
+enum ActionType {
+  ACTION_UNKNOWN = 0;
+  JOIN_ROOM = 1;      // 加入房间
+  SIT_DOWN = 2;       // 坐下
+  FOLD = 3;           // 弃牌
+  CHECK = 4;          // 看牌
+  CALL = 5;           // 跟注
+  RAISE = 6;          // 加注
+  CREATE_ROOM = 7;    // 创建房间
+  LIST_ROOMS = 8;     // 获取大厅房间列表
+  RECONNECT = 9;      // 断线重连（携带 session_token）
+  REBUY = 10;         // 补充筹码（amount 为补充额，0 则用默认买入）
+}
+
+// 2. 客户端操作请求包裹
+message PlayerActionRequest {
+  ActionType action_type = 1;
+  string room_id = 2;
+  int32 seat_index = 3;
+  int32 amount = 4;       // 加注时使用：目标总下注额
+  GameType game_type = 5; // CREATE_ROOM 时使用
+  int32 max_seats = 6;    // CREATE_ROOM 时使用，默认 6
+  int32 small_blind = 7;  // CREATE_ROOM 时使用，默认 10
+  int32 big_blind = 8;    // CREATE_ROOM 时使用，默认 20
+  string session_token = 9; // RECONNECT 时使用
+}
+
+// 5. 大厅房间摘要
+message RoomInfo {
+  string room_id = 1;
+  GameType game_type = 2;
+  int32 max_seats = 3;
+  int32 seated_count = 4;
+  int32 small_blind = 5;
+  int32 big_blind = 6;
+}
+
+// 6. 大厅房间列表响应
+message RoomListResponse {
+  repeated RoomInfo rooms = 1;
+}
+
+// 7. 服务端统一推送包裹（快照 / 房间列表 / 创建结果）
+message ServerMessage {
+  oneof payload {
+    TableSnapshotResponse table_snapshot = 1;
+    RoomListResponse room_list = 2;
+    RoomInfo room_created = 3;
+    SessionConnectedResponse session_connected = 4;
+    ErrorResponse error = 5;
+    ShowdownResult showdown = 6;
+  }
+}
+
+message SessionConnectedResponse {
+  string session_token = 1;
+}
+
+message ErrorResponse {
+  string code = 1;
+  string message = 2;
+}
+
+message ShowdownPlayerResult {
+  int32 seat_index = 1;
+  string username = 2;
+  repeated string hole_cards = 3;
+  int32 chips_won = 4;
+  bool is_winner = 5;
+  string hand_type = 6;
+}
+
+message ShowdownResult {
+  string room_id = 1;
+  int32 pot_total = 2;
+  string reason = 3;
+  repeated ShowdownPlayerResult players = 4;
+}
+
+// 3. 牌牌/玩家基础状态（用于同步给前端）
+message PlayerState {
+  string user_id = 1;
+  string username = 2;
+  int32 seat_index = 3;
+  int32 chips = 4;
+  int32 current_bet = 5;
+  bool is_folded = 6;
+  bool is_all_in = 7;
+  bool is_online = 8;
+  repeated string hole_cards = 9; // 底牌（注意：为了防作弊，非本人手牌后端发空字符串）
+  int32 session_profit = 10;      // 本场盈亏 = 当前筹码 - 累计买入
+}
+
+// 4. 服务器广播给所有人的完整牌桌快照（全场同步的核心）
+message TableSnapshotResponse {
+  string room_id = 1;
+  int32 pot = 2;
+  int32 current_max_bet = 3;
+  int32 dealer_index = 4;
+  int32 current_turn_index = 5;
+  repeated string community_cards = 6; // 公牌列表，如 ["S10", "HJ"] 代表黑桃10、红心J
+  repeated PlayerState players = 7;     // 全场所有座位上的玩家状态
+}
+
+

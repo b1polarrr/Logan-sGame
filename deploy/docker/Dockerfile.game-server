@@ -1,0 +1,18 @@
+# 多阶段构建：Maven 打包 + JRE 运行
+# 国内网络见 deploy/DOCKER_MIRROR.md
+ARG REGISTRY_PREFIX=
+FROM ${REGISTRY_PREFIX}maven:3.9-eclipse-temurin-17 AS build
+WORKDIR /build
+COPY pom.xml .
+COPY src ./src
+RUN mvn -q package -DskipTests
+
+ARG REGISTRY_PREFIX=
+FROM ${REGISTRY_PREFIX}eclipse-temurin:17-jre-alpine
+WORKDIR /app
+COPY --from=build /build/target/Poker_AA-1.0-SNAPSHOT.jar /app/app.jar
+
+ENV PORT=8888
+EXPOSE 8888
+
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

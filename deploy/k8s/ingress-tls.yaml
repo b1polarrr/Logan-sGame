@@ -1,0 +1,40 @@
+# 在已创建 poker-aa-tls Secret 后，与 ingress.yaml 合并或替换为带 TLS 的规则：
+#   kubectl apply -f deploy/k8s/ingress-tls.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: poker-aa
+  namespace: poker-aa
+  labels:
+    app.kubernetes.io/part-of: poker-aa
+  annotations:
+    nginx.ingress.kubernetes.io/affinity: cookie
+    nginx.ingress.kubernetes.io/session-cookie-name: poker-route
+    nginx.ingress.kubernetes.io/session-cookie-hash: sha1
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - poker.local
+      secretName: poker-aa-tls
+  rules:
+    - host: poker.local
+      http:
+        paths:
+          - path: /ws
+            pathType: Prefix
+            backend:
+              service:
+                name: poker-aa-game-server
+                port:
+                  number: 8888
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: poker-aa-nginx
+                port:
+                  number: 80

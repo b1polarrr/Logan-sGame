@@ -1,0 +1,106 @@
+# 阶段 4：Nginx + 双 game-server + Redis + Kafka
+#
+# 启动（在项目根目录）：
+#   docker compose -f deploy/docker-compose.yml up -d --build
+#
+# 访问：http://localhost:8080
+# WebSocket：ws://localhost:8080/ws（Nginx ip_hash 粘性到某一 game-server）
+#
+# 仅 Redis（IDEA 本地开发）：
+#   docker compose -f deploy/docker-compose.yml up -d redis
+
+name: poker_aa
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: poker_aa-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - poker_aa_redis_data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  kafka:
+    image: apache/kafka:3.7.0
+    container_name: poker_aa-kafka
+    hostname: kafka
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://kafka:9092,CONTROLLER://kafka:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    restart: unless-stopped
+
+  game-server-1:
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.game-server
+      args:
+        REGISTRY_PREFIX: ${DOCKER_REGISTRY_PREFIX:-}
+    container_name: poker_aa-game-1
+    environment:
+      POD_NAME: game-server-1
+      PORT: "8888"
+      REDIS_URL: redis://redis:6379
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_EVENTS_TOPIC: poker.events
+    depends_on:
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    restart: unless-stopped
+
+  game-server-2:
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.game-server
+      args:
+        REGISTRY_PREFIX: ${DOCKER_REGISTRY_PREFIX:-}
+    container_name: poker_aa-game-2
+    environment:
+      POD_NAME: game-server-2
+      PORT: "8888"
+      REDIS_URL: redis://redis:6379
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_EVENTS_TOPIC: poker.events
+    depends_on:
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    restart: unless-stopped
+
+  nginx:
+    build:
+      context: ..
+      dockerfile: deploy/nginx/Dockerfile
+      args:
+        REGISTRY_PREFIX: ${DOCKER_REGISTRY_PREFIX:-}
+    container_name: poker_aa-nginx
+    ports:
+      - "8080:80"
+    depends_on:
+      - game-server-1
+      - game-server-2
+    restart: unless-stopped
+
+volumes:
+  poker_aa_redis_data:
