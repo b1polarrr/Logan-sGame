@@ -26,6 +26,7 @@ enum ActionType {
   LIST_ROOMS = 8;     // 获取大厅房间列表
   RECONNECT = 9;      // 断线重连（携带 session_token）
   REBUY = 10;         // 补充筹码（amount 为补充额，0 则用默认买入）
+  READY = 11;         // 准备（所有在座且有筹码的玩家均准备后开局）
 }
 
 // 2. 客户端操作请求包裹
@@ -105,6 +106,7 @@ message PlayerState {
   bool is_online = 8;
   repeated string hole_cards = 9; // 底牌（注意：为了防作弊，非本人手牌后端发空字符串）
   int32 session_profit = 10;      // 本场盈亏 = 当前筹码 - 累计买入
+  bool is_ready = 11;             // 是否已准备（局间等待时使用）
 }
 
 // 4. 服务器广播给所有人的完整牌桌快照（全场同步的核心）

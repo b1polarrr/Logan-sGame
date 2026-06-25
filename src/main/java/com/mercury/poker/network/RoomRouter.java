@@ -91,6 +91,7 @@ public class RoomRouter {
             case CALL -> handleCall(gameEngine, session);
             case RAISE -> handleRaise(gameEngine, session, request.getAmount());
             case REBUY -> handleRebuy(gameEngine, session, request.getAmount());
+            case READY -> handleReady(gameEngine, session);
             default -> System.out.println("未支持的网络指令: " + request.getActionType());
         }
     }
@@ -142,11 +143,28 @@ public class RoomRouter {
         gameEngine.playerRebuy(seatIndex, rebuyAmount);
         System.out.println("座位 " + seatIndex + " 补充筹码 " + rebuyAmount);
         publishPlayerAction(session, "REBUY", seatIndex, rebuyAmount);
-        if (gameEngine.canStartNewHand()) {
-            gameEngine.startNewHand();
-            System.out.println("房间 " + session.getRoomId() + " 补码后自动开局");
-            publishEvent("hand_started", Map.of("roomId", session.getRoomId()));
+        broadcastSnapshot(gameEngine, session.getRoomId());
+    }
+
+    private void handleReady(GameEngine gameEngine, PlayerSession session) {
+        requireSeated(session);
+        if (!gameEngine.canStartNewHand()) {
+            throw new IllegalStateException("当前无法准备");
         }
+        int seatIndex = session.getSeatIndex();
+        Player player = gameEngine.getTable().getSeats()[seatIndex];
+        if (player.getChips() <= 0) {
+            throw new IllegalStateException("筹码不足，请先补充筹码");
+        }
+        player.setReady(true);
+        System.out.println("座位 " + seatIndex + " 已准备");
+        publishEvent("player_ready", Map.of(
+                "roomId", session.getRoomId(),
+                "userId", session.getUserId(),
+                "username", session.getUsername(),
+                "seatIndex", String.valueOf(seatIndex)
+        ));
+        tryStartHandIfAllReady(gameEngine, session.getRoomId());
         broadcastSnapshot(gameEngine, session.getRoomId());
     }
 
@@ -165,6 +183,7 @@ public class RoomRouter {
         Player player = new Player(session.getUserId(), session.getUsername(), DEFAULT_BUY_IN);
         table.sitDown(player, seatIndex);
         SessionManager.getINSTANCE().sitDown(ctx.channel(), seatIndex);
+        clearAllReady(table);
         System.out.println("玩家 " + session.getUsername() + " 坐到座位 " + seatIndex);
         publishEvent("player_sat", Map.of(
                 "roomId", table.getRoomId(),
@@ -172,11 +191,6 @@ public class RoomRouter {
                 "username", session.getUsername(),
                 "seatIndex", String.valueOf(seatIndex)
         ));
-        if (countSeatedPlayers(table) >= 2 && !isHandInProgress(table)) {
-            gameEngine.startNewHand();
-            System.out.println("房间 " + table.getRoomId() + " 自动开局");
-            publishEvent("hand_started", Map.of("roomId", table.getRoomId()));
-        }
         markEmptyState(table.getRoomId(), gameEngine);
         RedisRoomRegistry.getINSTANCE().updateSeatedCount(
                 table.getRoomId(),
@@ -436,13 +450,37 @@ public class RoomRouter {
         return count;
     }
 
-    private boolean isHandInProgress(Table table) {
+    private void clearAllReady(Table table) {
         for (Player player : table.getSeats()) {
-            if (player != null && !player.getHoleCards().isEmpty()) {
-                return true;
+            if (player != null) {
+                player.setReady(false);
             }
         }
-        return false;
+    }
+
+    private boolean areAllPlayersWithChipsReady(Table table) {
+        int playersWithChips = 0;
+        for (Player player : table.getSeats()) {
+            if (player == null || player.getChips() <= 0) {
+                continue;
+            }
+            playersWithChips++;
+            if (!player.isReady()) {
+                return false;
+            }
+        }
+        return playersWithChips >= 2;
+    }
+
+    private void tryStartHandIfAllReady(GameEngine gameEngine, String roomId) {
+        Table table = gameEngine.getTable();
+        if (!gameEngine.canStartNewHand() || !areAllPlayersWithChipsReady(table)) {
+            return;
+        }
+        clearAllReady(table);
+        gameEngine.startNewHand();
+        System.out.println("房间 " + roomId + " 全员准备，开始游戏");
+        publishEvent("hand_started", Map.of("roomId", roomId));
     }
 
     private RoomInfo buildRoomInfo(String roomId, GameEngine gameEngine, GameType gameType) {

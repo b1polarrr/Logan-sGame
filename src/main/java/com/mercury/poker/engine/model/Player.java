@@ -17,6 +17,7 @@ public class Player implements Serializable {
     private boolean isAllIn; //是否已ALL in
     private boolean isActive; //是否在当前局中
     private boolean isOnline; //网络状态
+    private boolean isReady; //是否已准备（局间等待开局）
 
     public Player (String userId,String username,int chips){
         this.userId = userId;
@@ -26,6 +27,7 @@ public class Player implements Serializable {
         this.isFolded = false;
         this.isAllIn = false;
         this.isOnline = true;
+        this.isReady = false;
         this.currentBet = 0;
     }
 
@@ -134,5 +136,13 @@ public class Player implements Serializable {
 
     public void setOnline(boolean online) {
         isOnline = online;
+    }
+
+    public boolean isReady() {
+        return isReady;
+    }
+
+    public void setReady(boolean ready) {
+        isReady = ready;
     }
 }

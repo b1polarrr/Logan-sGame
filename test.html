@@ -27,6 +27,7 @@
 <button onclick="sendAction('LIST_ROOMS')" id="btnList" disabled>刷新列表</button>
 <button onclick="sendAction('JOIN_ROOM')" id="btnJoin" disabled>加入房间</button>
 <button onclick="sendAction('SIT_DOWN')" id="btnSit" disabled>坐下</button>
+<button onclick="sendAction('READY')" id="btnReady" disabled>准备</button>
 <button onclick="sendAction('CHECK')" id="btnCheck" disabled>过牌</button>
 <button onclick="sendAction('CALL')" id="btnCall" disabled>跟注</button>
 <button onclick="sendAction('RAISE')" id="btnRaise" disabled>加注</button>
@@ -56,6 +57,7 @@ enum ActionType {
   RAISE = 6;
   CREATE_ROOM = 7;
   LIST_ROOMS = 8;
+  READY = 11;
 }
 message PlayerActionRequest {
   ActionType action_type = 1;
@@ -93,6 +95,7 @@ message PlayerState {
   bool is_all_in = 7;
   bool is_online = 8;
   repeated string hole_cards = 9;
+  bool is_ready = 11;
 }
 message TableSnapshotResponse {
   string room_id = 1;
@@ -113,7 +116,8 @@ message TableSnapshotResponse {
         CALL: 5,
         RAISE: 6,
         CREATE_ROOM: 7,
-        LIST_ROOMS: 8
+        LIST_ROOMS: 8,
+        READY: 11
     };
 
     const GAME_TYPE_MAP = {
@@ -187,7 +191,7 @@ message TableSnapshotResponse {
         };
     }
     function enableGameButtons(enabled) {
-        ['btnCreate', 'btnList', 'btnJoin', 'btnSit', 'btnCheck', 'btnCall', 'btnRaise', 'btnFold'].forEach(function (buttonId) {
+        ['btnCreate', 'btnList', 'btnJoin', 'btnSit', 'btnReady', 'btnCheck', 'btnCall', 'btnRaise', 'btnFold'].forEach(function (buttonId) {
             document.getElementById(buttonId).disabled = !enabled;
         });
     }
