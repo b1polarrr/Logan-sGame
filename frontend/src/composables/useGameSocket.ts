@@ -217,6 +217,13 @@ export function useGameSocket() {
         const code = String(messageObject.error.code ?? 'ERROR')
         const message = String(messageObject.error.message ?? '')
         appendLog('[错误] ' + code + ' ' + message)
+        if (code === 'ROOM_ON_OTHER_POD' || code === 'ROOM_NOT_FOUND') {
+          leaveTable()
+          localStorage.removeItem(ROOM_STORAGE_KEY)
+          localStorage.removeItem(SEAT_STORAGE_KEY)
+          refreshRoomList()
+          appendLog('[提示] 请刷新房间列表，加入本页可见的房间或新建房间')
+        }
         return
       }
       if (messageObject.showdown) {

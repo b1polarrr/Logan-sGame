@@ -1,4 +1,4 @@
-# 阶段 4：Nginx + 双 game-server + Redis + Kafka
+# 阶段 4：Nginx + game-server + Redis + Kafka（单机 compose，避免跨 Pod 进房失败）
 #
 # 全量启动（项目根目录）：
 #   docker compose -f deploy/docker-compose.yml up -d --build
@@ -6,11 +6,13 @@
 # 只更新前端（改了 frontend/ 时）：
 #   docker compose -f deploy/docker-compose.yml up -d --build nginx
 #
-# 只更新后端（改了 src/ 时，Maven 只编译一次）：
-#   docker compose -f deploy/docker-compose.yml up -d --build game-server-1 game-server-2
+# 只更新后端（改了 src/ 时）：
+#   docker compose -f deploy/docker-compose.yml up -d --build game-server-1
+#
+# 多 Pod 压测（可选）：docker compose --profile multi-pod -f deploy/docker-compose.yml up -d
 #
 # 访问：http://localhost:8080
-# WebSocket：ws://localhost:8080/ws（Nginx ip_hash 粘性到某一 game-server）
+# WebSocket：ws://localhost:8080/ws
 #
 # 仅 Redis（IDEA 本地开发）：
 #   docker compose -f deploy/docker-compose.yml up -d redis
@@ -76,6 +78,7 @@ services:
     restart: unless-stopped
 
   game-server-2:
+    profiles: ["multi-pod"]
     image: poker_aa-game-server:latest
     container_name: poker_aa-game-2
     environment:
@@ -104,7 +107,6 @@ services:
       - "8080:80"
     depends_on:
       - game-server-1
-      - game-server-2
     restart: unless-stopped
 
 volumes:

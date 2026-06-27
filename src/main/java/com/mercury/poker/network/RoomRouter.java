@@ -205,12 +205,11 @@ public class RoomRouter {
         for (LobbyRoomMeta lobbyRoomMeta : RedisRoomRegistry.getINSTANCE().listAllRooms()) {
             String roomId = lobbyRoomMeta.getRoomId();
             GameEngine gameEngine = activeRoom.get(roomId);
-            if (gameEngine != null) {
-                GameType gameType = roomGameTypes.getOrDefault(roomId, GameType.TEXAS_HOLDEM);
-                responseBuilder.addRooms(buildRoomInfo(roomId, gameEngine, gameType));
-            } else {
-                responseBuilder.addRooms(toRoomInfo(lobbyRoomMeta));
+            if (gameEngine == null) {
+                continue;
             }
+            GameType gameType = roomGameTypes.getOrDefault(roomId, GameType.TEXAS_HOLDEM);
+            responseBuilder.addRooms(buildRoomInfo(roomId, gameEngine, gameType));
         }
         SnapshotBroadcaster.getINSTANCE().sendRoomList(ctx.channel(), responseBuilder.build());
         System.out.println("已发送房间列表，共 " + responseBuilder.getRoomsCount() + " 个房间");
