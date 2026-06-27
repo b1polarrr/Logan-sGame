@@ -107,6 +107,7 @@ message PlayerState {
   int32 session_profit = 10;
   bool is_ready = 11;
   bool will_rebuy = 12;
+  bool is_active = 13;
 }
 message TableSnapshotResponse {
   string room_id = 1;

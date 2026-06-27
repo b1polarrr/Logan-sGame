@@ -11,6 +11,7 @@ export interface PlayerState {
   sessionProfit: number
   isReady: boolean
   willRebuy: boolean
+  isInHand: boolean
 }
 
 export interface TableSnapshot {
@@ -78,6 +79,7 @@ function parsePlayerState(raw: Record<string, unknown>): PlayerState {
     sessionProfit: Number(raw.sessionProfit ?? 0),
     isReady: Boolean(raw.isReady ?? raw.is_ready),
     willRebuy: Boolean(raw.willRebuy ?? raw.will_rebuy ?? true),
+    isInHand: Boolean(raw.isInHand ?? raw.is_active ?? raw.isActive ?? true),
   }
 }
 

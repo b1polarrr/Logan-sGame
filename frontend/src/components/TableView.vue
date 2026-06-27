@@ -122,6 +122,9 @@ const showGameplayActions = computed(() => {
   if (canClickReady.value || needsReadyBeforeFirstHand.value) {
     return false
   }
+  if (props.snapshot.currentTurnIndex >= 0 && !myPlayer.value.isInHand) {
+    return false
+  }
   if (
     myPlayer.value.chips === 0 &&
     props.snapshot.currentTurnIndex < 0 &&
@@ -199,8 +202,18 @@ function profitClass(profit: number): string {
 const isMyTurn = computed(
   () =>
     isSeated.value &&
+    myPlayer.value?.isInHand &&
     props.snapshot.currentTurnIndex >= 0 &&
     props.snapshot.currentTurnIndex === props.mySeatIndex,
+)
+
+const isSittingOutCurrentHand = computed(
+  () =>
+    isSeated.value &&
+    myPlayer.value != null &&
+    myPlayer.value.chips > 0 &&
+    !myPlayer.value.isInHand &&
+    props.snapshot.currentTurnIndex >= 0,
 )
 
 const callAmount = computed(() => {
@@ -217,7 +230,11 @@ const mustAllIn = computed(() => {
 })
 
 const canAllIn = computed(
-  () => myPlayer.value != null && myPlayer.value.chips > 0 && isMyTurn.value,
+  () =>
+    myPlayer.value != null &&
+    myPlayer.value.isInHand &&
+    myPlayer.value.chips > 0 &&
+    isMyTurn.value,
 )
 
 const potLabel = computed(() => formatChips(displayPot.value, props.bigBlind))
@@ -689,6 +706,9 @@ function shouldShowCards(player: TableSnapshot['players'][0] | null, seatIndex: 
       </div>
 
       <p v-if="isSeated && isMyTurn" class="turn-tip active">轮到你了</p>
+      <p v-else-if="isSeated && isSittingOutCurrentHand" class="turn-tip">
+        已补码，本局暂不参与
+      </p>
       <p v-else-if="isSeated && showdownResult" class="turn-tip">摊牌结算中…</p>
       <p v-else-if="isSeated && canClickReady" class="turn-tip">点击「准备」开始本局</p>
       <p v-else-if="isSeated && waitingOthersReady" class="turn-tip">已准备，等待其他玩家…</p>

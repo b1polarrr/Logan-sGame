@@ -87,6 +87,9 @@ public class GameManager {
      * 补充筹码：仅当当前筹码为 0 时允许。
      */
     public void playerRebuy(int seatIndex, int amount) {
+        if (table.getCurrentTurnIndex() >= 0) {
+            throw new IllegalStateException("局进行中无法补码");
+        }
         Player player = table.getSeats()[seatIndex];
         if (player == null) {
             throw new IllegalStateException("座位无人");
@@ -100,7 +103,7 @@ public class GameManager {
         player.addChips(amount);
         player.addSessionBuyIn(amount);
         player.setWillRebuy(true);
-        player.resetForNewHand();
+        player.applyBetweenHandsRebuy();
     }
 
     /**
