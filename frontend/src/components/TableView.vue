@@ -34,6 +34,13 @@ const raiseSliderTotal = ref(0)
 
 const isSeated = computed(() => props.mySeatIndex >= 0)
 
+const betweenHands = computed(
+  () =>
+    handEverStarted.value &&
+    props.snapshot.currentTurnIndex < 0 &&
+    !props.showdownResult,
+)
+
 const playersWithChips = computed(() =>
   props.snapshot.players.filter((player) => player.chips > 0),
 )
@@ -64,9 +71,13 @@ const waitingOthersReady = computed(
 
 watch(
   () => props.snapshot.currentTurnIndex,
-  (turnIndex) => {
+  (turnIndex, previousTurnIndex) => {
     if (turnIndex >= 0) {
       handEverStarted.value = true
+      rebuyDismissed.value = false
+    }
+    if (previousTurnIndex != null && previousTurnIndex >= 0 && turnIndex < 0) {
+      rebuyDismissed.value = false
     }
   },
   { immediate: true },
@@ -91,10 +102,18 @@ const showRebuyModal = computed(
     isSeated.value &&
     myPlayer.value != null &&
     myPlayer.value.chips === 0 &&
-    !rebuyDismissed.value &&
-    props.snapshot.currentTurnIndex < 0 &&
-    !props.showdownResult,
+    betweenHands.value &&
+    !rebuyDismissed.value,
 )
+
+function isRebuyDeferredForSeat(seatIndex: number): boolean {
+  return (
+    seatIndex === props.mySeatIndex &&
+    rebuyDismissed.value &&
+    betweenHands.value &&
+    (props.snapshot.players.find((player) => player.seatIndex === seatIndex)?.chips ?? -1) === 0
+  )
+}
 
 const profitRows = computed(() =>
   [...props.snapshot.players].sort((left, right) => left.seatIndex - right.seatIndex),
@@ -459,6 +478,7 @@ watch(
               :show-cards="shouldShowCards(slot.player, slot.seatIndex)"
               :hand-type-label="getHandTypeForSeat(slot.seatIndex)"
               :show-ready-status="needsReadyBeforeFirstHand"
+              :show-rebuy-next-hand="isRebuyDeferredForSeat(slot.seatIndex)"
               @sit-down="emit('sitDown', slot.seatIndex)"
             />
           </div>
@@ -594,9 +614,13 @@ watch(
       <p v-else-if="isSeated && showdownResult" class="turn-tip">摊牌结算中…</p>
       <p v-else-if="isSeated && canClickReady" class="turn-tip">点击「准备」开始本局</p>
       <p v-else-if="isSeated && waitingOthersReady" class="turn-tip">已准备，等待其他玩家…</p>
-      <p v-else-if="isSeated && snapshot.currentTurnIndex < 0 && snapshot.players.some((player) => player.chips === 0)" class="turn-tip">
-        等待玩家补充筹码…
+      <p v-else-if="isSeated && isRebuyDeferredForSeat(mySeatIndex)" class="turn-tip">
+        已选择下把再补码，需补码才能参与下一局
       </p>
+      <p v-else-if="isSeated && betweenHands && playersWithChips.length < 2 && snapshot.players.some((player) => player.chips === 0)" class="turn-tip">
+        等待玩家补充筹码，至少 2 人有筹码后自动开局…
+      </p>
+      <p v-else-if="isSeated && betweenHands && playersWithChips.length >= 2" class="turn-tip">即将开始下一局…</p>
       <p v-else-if="isSeated && snapshot.currentTurnIndex < 0 && handEverStarted" class="turn-tip">本局结束，即将发牌…</p>
       <p v-else-if="isSeated && snapshot.currentTurnIndex < 0" class="turn-tip">等待开局…</p>
       <p v-else-if="isSeated" class="turn-tip">等待其他玩家…</p>

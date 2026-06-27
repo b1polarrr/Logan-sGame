@@ -143,6 +143,7 @@ public class RoomRouter {
         gameEngine.playerRebuy(seatIndex, rebuyAmount);
         System.out.println("座位 " + seatIndex + " 补充筹码 " + rebuyAmount);
         publishPlayerAction(session, "REBUY", seatIndex, rebuyAmount);
+        tryStartNextHandIfEligible(gameEngine, session.getRoomId());
         broadcastSnapshot(gameEngine, session.getRoomId());
     }
 
@@ -416,14 +417,43 @@ public class RoomRouter {
                 if (gameEngine == null) {
                     return;
                 }
-                gameEngine.startNextHand();
-                SnapshotBroadcaster.getINSTANCE().broadcast(gameEngine, roomId);
-                System.out.println("房间 " + roomId + " 已开始下一局");
+                if (tryStartNextHandIfEligible(gameEngine, roomId)) {
+                    SnapshotBroadcaster.getINSTANCE().broadcast(gameEngine, roomId);
+                    System.out.println("房间 " + roomId + " 已开始下一局");
+                } else {
+                    System.out.println("房间 " + roomId + " 暂无法开局，等待至少 2 名玩家有筹码");
+                }
             } catch (Exception exception) {
                 System.err.println("开始下一局失败: " + exception.getMessage());
                 exception.printStackTrace();
             }
         }, SHOWDOWN_DELAY_MS, TimeUnit.MILLISECONDS);
+    }
+
+    /** 局间：至少 2 名玩家有筹码时自动开下一局（补码后也会调用） */
+    private boolean tryStartNextHandIfEligible(GameEngine gameEngine, String roomId) {
+        if (!gameEngine.canStartNewHand()) {
+            return false;
+        }
+        if (countPlayersWithChips(gameEngine.getTable()) < 2) {
+            return false;
+        }
+        clearAllReady(gameEngine.getTable());
+        if (!gameEngine.startNextHand()) {
+            return false;
+        }
+        publishEvent("hand_started", Map.of("roomId", roomId));
+        return true;
+    }
+
+    private int countPlayersWithChips(Table table) {
+        int count = 0;
+        for (Player player : table.getSeats()) {
+            if (player != null && player.getChips() > 0) {
+                count++;
+            }
+        }
+        return count;
     }
 
     private void requireJoined(PlayerSession session) {

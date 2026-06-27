@@ -11,6 +11,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 
 public class GameManager {
     private final Table table;
@@ -68,10 +69,12 @@ public class GameManager {
         return result;
     }
 
-    public void startNextHand() {
+    public boolean startNextHand() {
         if (countSeatedPlayersWithChips() >= 2) {
             startNewHand();
+            return true;
         }
+        return false;
     }
 
     /**
@@ -90,6 +93,7 @@ public class GameManager {
         }
         player.addChips(amount);
         player.addSessionBuyIn(amount);
+        player.resetForNewHand();
     }
 
     public boolean canStartNewHand() {
@@ -228,37 +232,131 @@ public class GameManager {
             return;
         }
 
-        //多人比牌
+        // 多人比牌（边池）
         Map<Player, HandValue> playerResults = new HashMap<>();
-        for (Player p : activePlayer){
+        for (Player player : activePlayer) {
             List<Card> sevenCards = new ArrayList<>(table.getCommunityCards());
-            sevenCards.addAll(p.getHoleCards());
-            playerResults.put(p, evaluator.evaluate(sevenCards));
+            sevenCards.addAll(player.getHoleCards());
+            playerResults.put(player, evaluator.evaluate(sevenCards));
         }
 
-        //找出赢家
-        List<Player> winners = new ArrayList<>();
-        HandValue bestValue = null;
-
-        for (Player p : activePlayer){
-            HandValue currentVal = playerResults.get(p);
-            if (bestValue == null || currentVal.compareTo(bestValue) > 0){
-                bestValue = currentVal;
-                winners.clear();
-                winners.add(p);
-            }else if (currentVal.compareTo(bestValue) == 0){
-                winners.add(p);
-            }
+        Map<Player, Integer> chipsWonByPlayer = new HashMap<>();
+        for (SidePotLayer layer : buildSidePotLayers()) {
+            awardSidePotLayer(layer, playerResults, chipsWonByPlayer);
         }
 
-        int share = potTotal / winners.size();
-        for (Player winner : winners){
-            winner.addChips(share);
+        for (Map.Entry<Player, Integer> entry : chipsWonByPlayer.entrySet()) {
+            entry.getKey().addChips(entry.getValue());
         }
-        pendingShowdown = buildShowdownResult(potTotal, "showdown", winners, share, playerResults);
+
+        pendingShowdown = buildShowdownResultWithWinnings(
+                potTotal, "showdown", playerResults, chipsWonByPlayer);
         table.clearPot();
         actedThisRound.clear();
         table.setCurrentTurnIndex(-1);
+    }
+
+    private record SidePotLayer(int amount, List<Player> eligiblePlayers) {}
+
+    private List<SidePotLayer> buildSidePotLayers() {
+        Map<Player, Integer> contributions = new HashMap<>();
+        for (Player player : table.getSeats()) {
+            if (player != null && player.getHandContribution() > 0) {
+                contributions.put(player, player.getHandContribution());
+            }
+        }
+
+        TreeSet<Integer> levels = new TreeSet<>();
+        for (int contribution : contributions.values()) {
+            levels.add(contribution);
+        }
+
+        List<SidePotLayer> layers = new ArrayList<>();
+        int previousLevel = 0;
+        for (int level : levels) {
+            int potSlice = 0;
+            List<Player> eligiblePlayers = new ArrayList<>();
+            for (Map.Entry<Player, Integer> entry : contributions.entrySet()) {
+                Player player = entry.getKey();
+                int invested = entry.getValue();
+                if (invested >= level) {
+                    potSlice += level - previousLevel;
+                    if (!player.isFolded() && player.isActive()) {
+                        eligiblePlayers.add(player);
+                    }
+                } else if (invested > previousLevel) {
+                    potSlice += invested - previousLevel;
+                }
+            }
+            previousLevel = level;
+            if (potSlice > 0 && !eligiblePlayers.isEmpty()) {
+                layers.add(new SidePotLayer(potSlice, eligiblePlayers));
+            }
+        }
+        return layers;
+    }
+
+    private void awardSidePotLayer(
+            SidePotLayer layer,
+            Map<Player, HandValue> playerResults,
+            Map<Player, Integer> chipsWonByPlayer
+    ) {
+        List<Player> winners = new ArrayList<>();
+        HandValue bestValue = null;
+        for (Player player : layer.eligiblePlayers()) {
+            HandValue handValue = playerResults.get(player);
+            if (handValue == null) {
+                continue;
+            }
+            if (bestValue == null || handValue.compareTo(bestValue) > 0) {
+                bestValue = handValue;
+                winners.clear();
+                winners.add(player);
+            } else if (handValue.compareTo(bestValue) == 0) {
+                winners.add(player);
+            }
+        }
+        if (winners.isEmpty()) {
+            return;
+        }
+        int share = layer.amount() / winners.size();
+        for (Player winner : winners) {
+            chipsWonByPlayer.merge(winner, share, Integer::sum);
+        }
+    }
+
+    private HandShowdownResult buildShowdownResultWithWinnings(
+            int potTotal,
+            String reason,
+            Map<Player, HandValue> playerHandValues,
+            Map<Player, Integer> chipsWonByPlayer
+    ) {
+        List<HandShowdownResult.PlayerLine> lines = new ArrayList<>();
+        for (int seatIndex = 0; seatIndex < table.getSeats().length; seatIndex++) {
+            Player player = table.getSeats()[seatIndex];
+            if (player == null || player.isFolded()) {
+                continue;
+            }
+            int chipsWon = chipsWonByPlayer.getOrDefault(player, 0);
+            List<String> holeCardCodes = new ArrayList<>();
+            for (Card holeCard : player.getHoleCards()) {
+                holeCardCodes.add(holeCard.toString());
+            }
+            String handTypeName = "";
+            HandValue handValue = playerHandValues.get(player);
+            if (handValue != null) {
+                handTypeName = handValue.category().getDescription();
+            }
+            lines.add(new HandShowdownResult.PlayerLine(
+                    seatIndex,
+                    player.getUsername(),
+                    holeCardCodes,
+                    chipsWon,
+                    chipsWon > 0,
+                    handTypeName
+            ));
+        }
+        return new HandShowdownResult(table.getRoomId(), potTotal, reason, lines);
     }
 
     private HandShowdownResult buildShowdownResult(

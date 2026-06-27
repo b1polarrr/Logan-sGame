@@ -16,6 +16,7 @@ const props = defineProps<{
   showCards: boolean
   handTypeLabel?: string
   showReadyStatus?: boolean
+  showRebuyNextHand?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -77,7 +78,8 @@ const chipLabel = computed(() => {
       <div class="info-plate">
         <div class="name-row">
           <span class="name">{{ player.username }}</span>
-          <span v-if="showReadyStatus && player.isReady" class="badge ready">已准备</span>
+          <span v-if="showRebuyNextHand" class="badge rebuy-next">下把玩</span>
+          <span v-else-if="showReadyStatus && player.isReady" class="badge ready">已准备</span>
           <span v-else-if="showReadyStatus && player.chips > 0" class="badge not-ready">未准备</span>
           <span v-else-if="player.isFolded" class="badge folded">弃牌</span>
           <span v-else-if="player.isAllIn" class="badge all-in">全下</span>
@@ -244,6 +246,11 @@ const chipLabel = computed(() => {
   font-size: 10px;
   padding: 1px 5px;
   border-radius: 4px;
+}
+
+.badge.rebuy-next {
+  background: rgba(52, 152, 219, 0.2);
+  color: #3498db;
 }
 
 .badge.ready {

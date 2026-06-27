@@ -34,8 +34,8 @@ public class TexasHoldemEngine implements GameEngine {
     }
 
     @Override
-    public void startNextHand() {
-        gameManager.startNextHand();
+    public boolean startNextHand() {
+        return gameManager.startNextHand();
     }
 
     @Override

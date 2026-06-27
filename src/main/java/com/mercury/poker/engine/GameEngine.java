@@ -15,8 +15,8 @@ public interface GameEngine {
 
     void startNewHand();
 
-    /** 摊牌展示结束后由调度器调用，开始下一局 */
-    void startNextHand();
+    /** 摊牌展示结束后由调度器调用，开始下一局；成功返回 true */
+    boolean startNextHand();
 
     /** 取走并清空本局摊牌结果（若有） */
     HandShowdownResult consumePendingShowdown();

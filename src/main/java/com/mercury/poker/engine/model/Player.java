@@ -12,6 +12,8 @@ public class Player implements Serializable {
     /** 本场累计买入（含初始坐下与补码） */
     private int sessionBuyIn;
     private int currentBet; //当前轮次下注额
+    /** 本局累计投入（含已 sweep 进底池的部分，用于边池结算） */
+    private int handContribution;
     private final List<Card> holeCards = new ArrayList<>(); //底牌（2张）
     private boolean isFolded; //是否已弃牌
     private boolean isAllIn; //是否已ALL in
@@ -29,6 +31,7 @@ public class Player implements Serializable {
         this.isOnline = true;
         this.isReady = false;
         this.currentBet = 0;
+        this.handContribution = 0;
         this.isActive = chips > 0;
     }
 
@@ -36,6 +39,7 @@ public class Player implements Serializable {
     public void resetForNewHand(){
         this.holeCards.clear();
         this.currentBet = 0;
+        this.handContribution = 0;
         this.isFolded = false;
         this.isAllIn = false;
         this.isActive = this.chips > 0; //筹码大于0
@@ -48,6 +52,7 @@ public class Player implements Serializable {
         }
         this.chips -= amount;
         this.currentBet += amount;
+        this.handContribution += amount;
         if (this.chips == 0){
             this.isAllIn = true;
         }
@@ -104,6 +109,10 @@ public class Player implements Serializable {
     /** 本场盈亏：当前筹码减去累计买入 */
     public int getSessionProfit() {
         return chips - sessionBuyIn;
+    }
+
+    public int getHandContribution() {
+        return handContribution;
     }
 
     public int getCurrentBet() {
