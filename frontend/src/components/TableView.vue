@@ -97,22 +97,48 @@ const myPlayer = computed(() =>
 
 const buyInAmount = computed(() => props.defaultBuyIn ?? 1000)
 
-const showRebuyModal = computed(
+/** 我是否仍在本局内（含 all-in 跑牌、等待摊牌） */
+const amStillInHand = computed(() => {
+  if (!myPlayer.value || myPlayer.value.chips > 0) {
+    return false
+  }
+  if (myPlayer.value.isFolded) {
+    return false
+  }
+  if (props.showdownResult) {
+    return false
+  }
+  if (myPlayer.value.isAllIn) {
+    return true
+  }
+  return false
+})
+
+const needsRebuy = computed(
   () =>
     isSeated.value &&
     myPlayer.value != null &&
     myPlayer.value.chips === 0 &&
-    betweenHands.value &&
-    !rebuyDismissed.value,
+    !amStillInHand.value,
 )
 
+const showRebuyModal = computed(() => needsRebuy.value && !rebuyDismissed.value)
+
 function isRebuyDeferredForSeat(seatIndex: number): boolean {
-  return (
-    seatIndex === props.mySeatIndex &&
-    rebuyDismissed.value &&
-    betweenHands.value &&
-    (props.snapshot.players.find((player) => player.seatIndex === seatIndex)?.chips ?? -1) === 0
-  )
+  if (seatIndex !== props.mySeatIndex || !rebuyDismissed.value) {
+    return false
+  }
+  const player = props.snapshot.players.find((p) => p.seatIndex === seatIndex)
+  if (!player || player.chips !== 0) {
+    return false
+  }
+  if (player.isFolded) {
+    return false
+  }
+  if (props.showdownResult) {
+    return true
+  }
+  return !player.isAllIn
 }
 
 const profitRows = computed(() =>

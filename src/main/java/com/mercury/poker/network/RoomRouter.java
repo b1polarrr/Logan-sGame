@@ -29,6 +29,7 @@ public class RoomRouter {
     private static final int DEFAULT_BUY_IN = 1000;
     private static final long EMPTY_ROOM_TIMEOUT_MS = 5 * 60 * 1000L;
     private static final long SHOWDOWN_DELAY_MS = 4500L;
+    private static final long RUNOUT_STREET_DELAY_MS = 2000L;
     private static final ScheduledExecutorService HAND_SCHEDULER = Executors.newSingleThreadScheduledExecutor(handler -> {
         Thread thread = new Thread(handler, "poker-hand-scheduler");
         thread.setDaemon(true);
@@ -39,6 +40,8 @@ public class RoomRouter {
     private final ConcurrentHashMap<String, GameType> roomGameTypes = new ConcurrentHashMap<>();
     /** 房间无人坐下时记录的空闲起始时间 */
     private final ConcurrentHashMap<String, Long> emptySince = new ConcurrentHashMap<>();
+    /** 防止同一房间重复调度跑牌 */
+    private final ConcurrentHashMap<String, Boolean> runoutScheduled = new ConcurrentHashMap<>();
 
     //单例模式：饿汉式
     private static final RoomRouter INSTANCE = new RoomRouter();
@@ -407,7 +410,33 @@ public class RoomRouter {
             );
         } else {
             SnapshotBroadcaster.getINSTANCE().broadcast(gameEngine, roomId);
+            scheduleRunoutIfNeeded(gameEngine, roomId);
         }
+    }
+
+    /** all-in 后逐街发公牌：翻牌 → 等 2s → 转牌 → 等 2s → 河牌 */
+    private void scheduleRunoutIfNeeded(GameEngine gameEngine, String roomId) {
+        if (!gameEngine.needsRunout()) {
+            runoutScheduled.remove(roomId);
+            return;
+        }
+        if (runoutScheduled.putIfAbsent(roomId, Boolean.TRUE) != null) {
+            return;
+        }
+        HAND_SCHEDULER.schedule(() -> {
+            runoutScheduled.remove(roomId);
+            try {
+                GameEngine engine = activeRoom.get(roomId);
+                if (engine == null) {
+                    return;
+                }
+                engine.advanceRunoutStreet();
+                broadcastSnapshot(engine, roomId);
+            } catch (Exception exception) {
+                System.err.println("跑牌失败: " + exception.getMessage());
+                exception.printStackTrace();
+            }
+        }, RUNOUT_STREET_DELAY_MS, TimeUnit.MILLISECONDS);
     }
 
     private void scheduleNextHand(String roomId) {

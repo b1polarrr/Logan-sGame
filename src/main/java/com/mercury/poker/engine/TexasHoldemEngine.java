@@ -67,4 +67,14 @@ public class TexasHoldemEngine implements GameEngine {
     public boolean canStartNewHand() {
         return gameManager.canStartNewHand();
     }
+
+    @Override
+    public boolean needsRunout() {
+        return gameManager.needsRunout();
+    }
+
+    @Override
+    public boolean advanceRunoutStreet() {
+        return gameManager.advanceRunoutStreet();
+    }
 }

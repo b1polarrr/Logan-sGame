@@ -523,13 +523,39 @@ public class GameManager {
         }
     }
 
-    /**全员allin 连续发牌剩余公共牌*/
-    private void runOutBoardAndSettle(){
-        while (table.getCommunityCards().size() < 5){
-            int need = table.getCommunityCards().isEmpty() ? 3 : 1;
-            advanceStreet(need);
+    /** 全员无法行动时是否还需继续跑牌（公牌未满且尚未摊牌） */
+    public boolean needsRunout() {
+        if (pendingShowdown != null) {
+            return false;
         }
-        settleHand();
+        if (table.getCommunityCards().size() >= 5) {
+            return false;
+        }
+        if (countPlayerInHand() <= 1) {
+            return false;
+        }
+        return getNextSeatCanAct(table.getDealerIndex()) == -1;
+    }
+
+    /**
+     * 跑牌：发一轮公牌；发满 5 张后摊牌。
+     *
+     * @return true 表示后续还有未发的街
+     */
+    public boolean advanceRunoutStreet() {
+        if (table.getCommunityCards().size() >= 5) {
+            if (pendingShowdown == null) {
+                settleHand();
+            }
+            return false;
+        }
+        int need = table.getCommunityCards().isEmpty() ? 3 : 1;
+        advanceStreet(need);
+        if (table.getCommunityCards().size() >= 5) {
+            settleHand();
+            return false;
+        }
+        return true;
     }
 
     private void advanceToNextStreetOrShowdown(){
@@ -554,9 +580,9 @@ public class GameManager {
             settleHand();
             return;
         }
-       //2.能行动的人数为0（全员all-in或弃牌）-》 自动发完公共牌并摊牌
+       //2.能行动的人数为0（全员all-in或弃牌）-》 先跑翻牌，后续由调度器逐街发牌
         if (getNextSeatCanAct(actedSeatIndex) == -1){
-            runOutBoardAndSettle();
+            advanceRunoutStreet();
             return;
         }
         //3.下注轮结束：所有人跟平，且本街能行动的玩家都已行动

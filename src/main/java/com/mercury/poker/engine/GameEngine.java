@@ -33,4 +33,14 @@ public interface GameEngine {
 
     /** 是否可开新局（至少两人有筹码且当前无进行中的手牌） */
     boolean canStartNewHand();
+
+    /** 全员无法行动且公牌未发完，需继续跑牌 */
+    boolean needsRunout();
+
+    /**
+     * 跑牌：发一轮公牌（翻牌 3 张或转/河各 1 张）；发满后摊牌。
+     *
+     * @return true 表示后续还有未发的街
+     */
+    boolean advanceRunoutStreet();
 }
