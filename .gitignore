@@ -1,0 +1,26 @@
+# Maven 编译产物（本地 build 生成，勿入库）
+target/
+
+# IntelliJ IDEA
+.idea/
+*.iml
+
+# VS Code（保留 extensions.json 供团队共享）
+.vscode/*
+!.vscode/extensions.json
+
+# 前端依赖与构建（frontend/ 内 npm 产生）
+node_modules/
+dist/
+dist-ssr/
+
+# 日志
+*.log
+
+# 操作系统
+.DS_Store
+Thumbs.db
+
+# 环境变量（若有本地密钥）
+.env
+.env.local

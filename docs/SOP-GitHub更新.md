@@ -10,7 +10,7 @@
 | 项 | 说明 |
 |---|---|
 | GitHub 账号 | 已登录，对仓库有 push 权限 |
-| Git 客户端 | 推荐安装 [Git for Windows](https://git-scm.com/download/win)，或使用 IDEA 内置 Git |
+| Git 客户端 | 安装 [Git for Windows](https://git-scm.com/download/win)，**所有 git 操作用 cmd 命令行** |
 | 远程仓库 | 本项目已配置 `origin` → `Logan-sGame`，一般无需重复添加 |
 | 编译通过 | push 前在 IDEA 执行 **Build → Rebuild Project**，确保 proto 已生成且无报错 |
 
@@ -18,49 +18,37 @@
 
 ## 二、标准流程（每次改完代码）
 
-### 方式 A：IntelliJ IDEA（推荐）
+> **约定**：不用 IDEA 做 Git；功能在 `frontend/` 验证，不在 `test.html` 测试。  
+> 推送后在阿里云主机拉代码并重建部署（见 [开发约定.md](./开发约定.md) §1.4）。
 
-1. **打开版本控制**
-   - 菜单 `Git` → `Commit...`（或 `Ctrl + K`）
+### cmd 命令行（唯一方式）
 
-2. **查看变更**
-   - 左侧勾选要提交的文件
-   - 右侧填写 **Commit Message**（见下方示例）
-   - 确认 diff 无多余文件（如 `target/`、`.idea/workspace.xml`）
+在项目根目录 `Poker_AA` 打开 **cmd**，执行：
 
-3. **提交到本地**
-   - 点击 **Commit**（仅本地）
-   - 或 **Commit and Push**（本地 + 推送，一步到位）
-
-4. **若只 Commit 了，还需 Push**
-   - 菜单 `Git` → `Push...`（或 `Ctrl + Shift + K`）
-   - 确认远程为 `origin/main`，点击 **Push**
-
-5. **验证**
-   - 浏览器打开：https://github.com/b1polarrr/Logan-sGame
-   - 确认最新 commit 与提交信息一致
-
-### 方式 B：命令行（Git 已安装且加入 PATH）
-
-在项目根目录 `Poker_AA` 下执行：
-
-```powershell
-# 1. 查看状态
+```cmd
+REM 1. 查看状态
 git status
 
-# 2. 添加要提交的文件（或 git add . 添加全部，注意排除 target）
-git add src/main/proto/game_protocol.proto
-git add src/main/java/com/mercury/poker/engine/model/Player.java
-git add src/main/java/com/mercury/poker/network/RoomRouter.java
-git add src/main/java/com/mercury/poker/network/SnapshotBroadcaster.java
-git add test.html
+REM 2. 添加要提交的文件（按需列出，勿提交 target/）
+git add frontend/src/components/TableView.vue
+git add frontend/src/composables/useGameSocket.ts
 
-# 3. 提交
-git commit -m "feat: 进房后需全员准备再开局"
+REM 3. 提交
+git commit -m "fix: 前端增加准备开局"
 
-# 4. 推送到 GitHub
+REM 4. 推送到 GitHub
 git push origin main
 ```
+
+### 阿里云主机部署（拉取后测试）
+
+```bash
+cd /path/to/Poker_AA
+git pull origin main
+docker compose -f deploy/docker-compose.yml up -d --build
+```
+
+浏览器访问主机地址验证；前端改动必须 `--build` 才会生效。
 
 ---
 
@@ -124,7 +112,7 @@ git pull origin main --rebase
 git push origin main
 ```
 
-IDEA：`Git` → `Pull`，再 `Push`。
+cmd：`git pull origin main --rebase`，再 `git push origin main`。
 
 ### 3. 冲突（Conflict）
 
@@ -151,8 +139,9 @@ git commit -m "chore: 停止跟踪 target 目录"
 - [ ] IDEA Rebuild 无报错
 - [ ] Commit 未包含 `target/`、个人 IDE 配置
 - [ ] Commit message 清晰
-- [ ] Push 到 `origin/main`
+- [ ] 通过 **cmd** Push 到 `origin/main`
 - [ ] GitHub 网页上能看到最新提交
+- [ ] 涉及 `frontend/` 时，已在阿里云 pull 并 **rebuild** 后再测
 
 ---
 

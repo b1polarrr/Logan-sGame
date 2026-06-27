@@ -23,7 +23,19 @@ alwaysApply: true
 
 - 最小改动，匹配现有风格，不主动 git commit
 
+## 测试与发布
+
+- **不在 `test.html` 联调**；功能改动在 `frontend/`（Vue）实现与验证
+- 测试流程：本地改完 → **cmd 推 GitHub** → 阿里云主机 `git pull` → 重建部署后测试
+- 前端改动需 rebuild Nginx 镜像（`docker compose ... up -d --build`），仅 pull 不够
+
+## Git 操作
+
+- **一律用 cmd（命令行）** 做 git，不用 IDEA 图形界面
+- 常用：`git status` → `git add` → `git commit` → `git push origin main`
+- 详见 [docs/SOP-GitHub更新.md](../../docs/SOP-GitHub更新.md)
+
 ## 项目上下文
 
 - Java 17 + Netty + Protobuf 扑克后端；WebSocket 路径 `/ws` 端口 8888
-- 当前进度：引擎与 RoomRouter、SnapshotBroadcaster 已完成；待做 test.html 联调与 Vue 前端
+- 正式前端：`frontend/`（Vue3 + Vite）；`test.html` 仅历史联调页，不再用于测试
