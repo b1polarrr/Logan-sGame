@@ -29,6 +29,7 @@ const {
   call,
   raiseBet,
   rebuy,
+  declineRebuy,
   ready,
   backToLobby,
 } = gameSocket
@@ -99,6 +100,7 @@ onMounted(() => {
       @call="call"
       @raise="raiseBet"
       @rebuy="rebuy"
+      @decline-rebuy="declineRebuy"
       @ready="ready"
     />
 

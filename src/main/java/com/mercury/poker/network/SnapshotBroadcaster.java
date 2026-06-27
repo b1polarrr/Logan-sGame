@@ -61,7 +61,8 @@ public class SnapshotBroadcaster {
                     .setIsAllIn(player.isAllIn())
                     .setIsOnline(player.isOnline())
                     .setSessionProfit(player.getSessionProfit())
-                    .setIsReady(player.isReady());
+                    .setIsReady(player.isReady())
+                    .setWillRebuy(player.isWillRebuy());
 
             boolean revealHoleCards = player.getUserId().equals(viewerUserId)
                     || (revealSeatIndices != null && revealSeatIndices.contains(seatIndex));

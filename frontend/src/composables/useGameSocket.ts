@@ -234,7 +234,7 @@ export function useGameSocket() {
         }
         showdownClearTimer = setTimeout(() => {
           showdownResult.value = null
-        }, 4600)
+        }, 10000)
         const winnerNames = result.players
           .filter((player) => player.isWinner)
           .map((player) => player.username)
@@ -422,6 +422,10 @@ export function useGameSocket() {
     await sendAction('REBUY', { amount: amount ?? 1000 })
   }
 
+  async function declineRebuy() {
+    await sendAction('DECLINE_REBUY')
+  }
+
   async function ready() {
     await sendAction('READY')
   }
@@ -460,6 +464,7 @@ export function useGameSocket() {
     call,
     raiseBet,
     rebuy,
+    declineRebuy,
     ready,
     leaveTable,
     backToLobby,

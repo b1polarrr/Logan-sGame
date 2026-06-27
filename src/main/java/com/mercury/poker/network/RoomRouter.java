@@ -28,7 +28,7 @@ import java.util.concurrent.TimeUnit;
 public class RoomRouter {
     private static final int DEFAULT_BUY_IN = 1000;
     private static final long EMPTY_ROOM_TIMEOUT_MS = 5 * 60 * 1000L;
-    private static final long SHOWDOWN_DELAY_MS = 4500L;
+    private static final long SHOWDOWN_DELAY_MS = 10000L;
     private static final long RUNOUT_STREET_DELAY_MS = 2000L;
     private static final ScheduledExecutorService HAND_SCHEDULER = Executors.newSingleThreadScheduledExecutor(handler -> {
         Thread thread = new Thread(handler, "poker-hand-scheduler");
@@ -95,6 +95,7 @@ public class RoomRouter {
             case RAISE -> handleRaise(gameEngine, session, request.getAmount());
             case REBUY -> handleRebuy(gameEngine, session, request.getAmount());
             case READY -> handleReady(gameEngine, session);
+            case DECLINE_REBUY -> handleDeclineRebuy(gameEngine, session);
             default -> System.out.println("未支持的网络指令: " + request.getActionType());
         }
     }
@@ -146,6 +147,16 @@ public class RoomRouter {
         gameEngine.playerRebuy(seatIndex, rebuyAmount);
         System.out.println("座位 " + seatIndex + " 补充筹码 " + rebuyAmount);
         publishPlayerAction(session, "REBUY", seatIndex, rebuyAmount);
+        tryStartNextHandIfEligible(gameEngine, session.getRoomId());
+        broadcastSnapshot(gameEngine, session.getRoomId());
+    }
+
+    private void handleDeclineRebuy(GameEngine gameEngine, PlayerSession session) {
+        requireSeated(session);
+        int seatIndex = session.getSeatIndex();
+        gameEngine.playerDeclineRebuy(seatIndex);
+        System.out.println("座位 " + seatIndex + " 选择稍后再说（不补码）");
+        publishPlayerAction(session, "DECLINE_REBUY", seatIndex, 0);
         tryStartNextHandIfEligible(gameEngine, session.getRoomId());
         broadcastSnapshot(gameEngine, session.getRoomId());
     }
@@ -410,16 +421,18 @@ public class RoomRouter {
             );
         } else {
             SnapshotBroadcaster.getINSTANCE().broadcast(gameEngine, roomId);
-            scheduleRunoutIfNeeded(gameEngine, roomId);
+            if (gameEngine.needsRunout()) {
+                scheduleRunoutStreet(roomId);
+            } else if (gameEngine.needsDelayedRunoutShowdown()) {
+                scheduleRunoutShowdown(roomId);
+            } else {
+                runoutScheduled.remove(roomId);
+            }
         }
     }
 
-    /** all-in 后逐街发公牌：翻牌 → 等 2s → 转牌 → 等 2s → 河牌 */
-    private void scheduleRunoutIfNeeded(GameEngine gameEngine, String roomId) {
-        if (!gameEngine.needsRunout()) {
-            runoutScheduled.remove(roomId);
-            return;
-        }
+    /** all-in 后逐街发公牌：翻牌 → 等 2s → 转牌 → 等 2s → 河牌 → 等 2s → 摊牌 */
+    private void scheduleRunoutStreet(String roomId) {
         if (runoutScheduled.putIfAbsent(roomId, Boolean.TRUE) != null) {
             return;
         }
@@ -439,6 +452,27 @@ public class RoomRouter {
         }, RUNOUT_STREET_DELAY_MS, TimeUnit.MILLISECONDS);
     }
 
+    /** 河牌发完后延迟 2 秒再摊牌（河牌阶段 all-in 不走此路径） */
+    private void scheduleRunoutShowdown(String roomId) {
+        if (runoutScheduled.putIfAbsent(roomId, Boolean.TRUE) != null) {
+            return;
+        }
+        HAND_SCHEDULER.schedule(() -> {
+            runoutScheduled.remove(roomId);
+            try {
+                GameEngine engine = activeRoom.get(roomId);
+                if (engine == null) {
+                    return;
+                }
+                engine.settleRunoutHand();
+                broadcastSnapshot(engine, roomId);
+            } catch (Exception exception) {
+                System.err.println("跑牌摊牌失败: " + exception.getMessage());
+                exception.printStackTrace();
+            }
+        }, RUNOUT_STREET_DELAY_MS, TimeUnit.MILLISECONDS);
+    }
+
     private void scheduleNextHand(String roomId) {
         HAND_SCHEDULER.schedule(() -> {
             try {
@@ -449,6 +483,9 @@ public class RoomRouter {
                 if (tryStartNextHandIfEligible(gameEngine, roomId)) {
                     SnapshotBroadcaster.getINSTANCE().broadcast(gameEngine, roomId);
                     System.out.println("房间 " + roomId + " 已开始下一局");
+                } else if (gameEngine.canStartNewHand()) {
+                    SnapshotBroadcaster.getINSTANCE().broadcast(gameEngine, roomId);
+                    System.out.println("房间 " + roomId + " 等待玩家补码或稍后再说后再开局");
                 } else {
                     System.out.println("房间 " + roomId + " 暂无法开局，等待至少 2 名玩家有筹码");
                 }
@@ -459,12 +496,15 @@ public class RoomRouter {
         }, SHOWDOWN_DELAY_MS, TimeUnit.MILLISECONDS);
     }
 
-    /** 局间：至少 2 名玩家有筹码时自动开下一局（补码后也会调用） */
+    /** 局间：至少 2 名玩家有筹码，且无人待询问补码时开下一局 */
     private boolean tryStartNextHandIfEligible(GameEngine gameEngine, String roomId) {
         if (!gameEngine.canStartNewHand()) {
             return false;
         }
         if (countPlayersWithChips(gameEngine.getTable()) < 2) {
+            return false;
+        }
+        if (hasPlayersAwaitingRebuyPrompt(gameEngine.getTable())) {
             return false;
         }
         clearAllReady(gameEngine.getTable());
@@ -473,6 +513,16 @@ public class RoomRouter {
         }
         publishEvent("hand_started", Map.of("roomId", roomId));
         return true;
+    }
+
+    /** 筹码为 0 且仍待询问补码的玩家会阻塞下一局开局 */
+    private boolean hasPlayersAwaitingRebuyPrompt(Table table) {
+        for (Player player : table.getSeats()) {
+            if (player != null && player.getChips() == 0 && player.isWillRebuy()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private int countPlayersWithChips(Table table) {
@@ -527,7 +577,7 @@ public class RoomRouter {
                 return false;
             }
         }
-        return playersWithChips >= 2;
+        return playersWithChips >= 2 && !hasPlayersAwaitingRebuyPrompt(table);
     }
 
     private void tryStartHandIfAllReady(GameEngine gameEngine, String roomId) {

@@ -20,6 +20,8 @@ public class Player implements Serializable {
     private boolean isActive; //是否在当前局中
     private boolean isOnline; //网络状态
     private boolean isReady; //是否已准备（局间等待开局）
+    /** 是否补码：初始 true；询问后选稍后再说为 false；补码后为 true */
+    private boolean willRebuy;
 
     public Player (String userId,String username,int chips){
         this.userId = userId;
@@ -30,6 +32,7 @@ public class Player implements Serializable {
         this.isAllIn = false;
         this.isOnline = true;
         this.isReady = false;
+        this.willRebuy = true;
         this.currentBet = 0;
         this.handContribution = 0;
         this.isActive = chips > 0;
@@ -154,5 +157,13 @@ public class Player implements Serializable {
 
     public void setReady(boolean ready) {
         isReady = ready;
+    }
+
+    public boolean isWillRebuy() {
+        return willRebuy;
+    }
+
+    public void setWillRebuy(boolean willRebuy) {
+        this.willRebuy = willRebuy;
     }
 }

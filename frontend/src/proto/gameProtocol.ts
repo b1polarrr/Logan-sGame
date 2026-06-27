@@ -12,6 +12,7 @@ export const ACTION_MAP = {
   RECONNECT: 9,
   REBUY: 10,
   READY: 11,
+  DECLINE_REBUY: 12,
 } as const
 
 export const GAME_TYPE_MAP = {
@@ -40,6 +41,7 @@ enum ActionType {
   RECONNECT = 9;
   REBUY = 10;
   READY = 11;
+  DECLINE_REBUY = 12;
 }
 message PlayerActionRequest {
   ActionType action_type = 1;
@@ -104,6 +106,7 @@ message PlayerState {
   repeated string hole_cards = 9;
   int32 session_profit = 10;
   bool is_ready = 11;
+  bool will_rebuy = 12;
 }
 message TableSnapshotResponse {
   string room_id = 1;

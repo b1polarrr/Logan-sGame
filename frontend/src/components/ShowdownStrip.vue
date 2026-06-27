@@ -35,7 +35,7 @@ const potLabel = computed(() => formatChips(props.result.potTotal, props.bigBlin
         </span>
       </li>
     </ul>
-    <p class="strip-hint">4 秒后下一局</p>
+    <p class="strip-hint">10 秒后下一局</p>
   </div>
 </template>
 

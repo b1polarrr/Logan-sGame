@@ -16,7 +16,7 @@ const props = defineProps<{
   showCards: boolean
   handTypeLabel?: string
   showReadyStatus?: boolean
-  showRebuyNextHand?: boolean
+  isWinner?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -56,7 +56,10 @@ const chipLabel = computed(() => {
   >
     <div v-if="isDealer" class="dealer-button">D</div>
 
-    <div v-if="showCards && player && !player.isFolded" class="hole-cards">
+    <div
+      v-if="showCards && player && (!player.isFolded || isMe)"
+      class="hole-cards"
+    >
       <PlayingCard
         v-for="(card, index) in holeCards"
         :key="index"
@@ -68,7 +71,17 @@ const chipLabel = computed(() => {
     </div>
 
     <template v-if="player">
-      <div class="avatar-wrap" :class="{ glowing: isActive }">
+      <div
+        class="avatar-wrap"
+        :class="{
+          glowing: isActive,
+          folded: player.isFolded,
+          winner: isWinner,
+        }"
+      >
+        <div v-if="isWinner" class="fireworks" aria-hidden="true">
+          <span v-for="particle in 12" :key="particle" class="firework-particle" />
+        </div>
         <div class="avatar" :style="{ background: avatarColor }">
           {{ avatarInitial }}
         </div>
@@ -78,11 +91,12 @@ const chipLabel = computed(() => {
       <div class="info-plate">
         <div class="name-row">
           <span class="name">{{ player.username }}</span>
-          <span v-if="showRebuyNextHand" class="badge rebuy-next">下把玩</span>
-          <span v-else-if="showReadyStatus && player.isReady" class="badge ready">已准备</span>
+          <span v-if="showReadyStatus && player.isReady" class="badge ready">已准备</span>
           <span v-else-if="showReadyStatus && player.chips > 0" class="badge not-ready">未准备</span>
           <span v-else-if="player.isFolded" class="badge folded">弃牌</span>
           <span v-else-if="player.isAllIn" class="badge all-in">全下</span>
+          <span v-else-if="player.chips === 0 && player.willRebuy" class="badge rebuying">正在补码</span>
+          <span v-else-if="player.chips === 0 && !player.willRebuy" class="badge rebuy-next">下把再玩</span>
           <span v-else-if="!player.isOnline" class="badge offline">离线</span>
         </div>
         <div class="chips-plate">{{ chipLabel }}</div>
@@ -110,8 +124,8 @@ const chipLabel = computed(() => {
   opacity: 0.85;
 }
 
-.player-pod.folded {
-  opacity: 0.5;
+.player-pod.folded .info-plate {
+  opacity: 0.75;
 }
 
 .dealer-button {
@@ -195,9 +209,126 @@ const chipLabel = computed(() => {
   border-color: rgba(52, 152, 219, 0.5);
 }
 
+.avatar-wrap.folded .avatar {
+  filter: grayscale(1);
+  opacity: 0.55;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.avatar-wrap.winner .avatar {
+  border-color: #f1c40f;
+  box-shadow: 0 0 20px rgba(241, 196, 15, 0.65);
+}
+
 .avatar-wrap.glowing .avatar {
   border-color: #2ecc71;
   box-shadow: 0 0 16px rgba(46, 204, 113, 0.55);
+}
+
+.fireworks {
+  position: absolute;
+  inset: -18px;
+  pointer-events: none;
+}
+
+.firework-particle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  margin: -3px;
+  border-radius: 50%;
+  background: #f1c40f;
+  opacity: 0;
+  animation: firework-burst 1.4s ease-out infinite;
+}
+
+.firework-particle:nth-child(3n) {
+  background: #e74c3c;
+}
+
+.firework-particle:nth-child(3n + 1) {
+  background: #3498db;
+}
+
+.firework-particle:nth-child(3n + 2) {
+  background: #2ecc71;
+}
+
+.firework-particle:nth-child(1) {
+  animation-delay: 0s;
+  --angle: 0deg;
+}
+
+.firework-particle:nth-child(2) {
+  animation-delay: 0.15s;
+  --angle: 30deg;
+}
+
+.firework-particle:nth-child(3) {
+  animation-delay: 0.3s;
+  --angle: 60deg;
+}
+
+.firework-particle:nth-child(4) {
+  animation-delay: 0.45s;
+  --angle: 90deg;
+}
+
+.firework-particle:nth-child(5) {
+  animation-delay: 0.6s;
+  --angle: 120deg;
+}
+
+.firework-particle:nth-child(6) {
+  animation-delay: 0.75s;
+  --angle: 150deg;
+}
+
+.firework-particle:nth-child(7) {
+  animation-delay: 0.2s;
+  --angle: 180deg;
+}
+
+.firework-particle:nth-child(8) {
+  animation-delay: 0.35s;
+  --angle: 210deg;
+}
+
+.firework-particle:nth-child(9) {
+  animation-delay: 0.5s;
+  --angle: 240deg;
+}
+
+.firework-particle:nth-child(10) {
+  animation-delay: 0.65s;
+  --angle: 270deg;
+}
+
+.firework-particle:nth-child(11) {
+  animation-delay: 0.8s;
+  --angle: 300deg;
+}
+
+.firework-particle:nth-child(12) {
+  animation-delay: 0.95s;
+  --angle: 330deg;
+}
+
+@keyframes firework-burst {
+  0% {
+    opacity: 1;
+    transform: rotate(var(--angle)) translateY(0) scale(1);
+  }
+  70% {
+    opacity: 0.85;
+    transform: rotate(var(--angle)) translateY(-28px) scale(0.6);
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(var(--angle)) translateY(-36px) scale(0.2);
+  }
 }
 
 .timer-ring {
@@ -251,6 +382,11 @@ const chipLabel = computed(() => {
 .badge.rebuy-next {
   background: rgba(52, 152, 219, 0.2);
   color: #3498db;
+}
+
+.badge.rebuying {
+  background: rgba(241, 196, 15, 0.22);
+  color: #f1c40f;
 }
 
 .badge.ready {

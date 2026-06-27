@@ -22,6 +22,10 @@ public class GameManager {
     /** 本下注轮已行动且仍可决策的座位（新街或加注后清空） */
     private final Set<Integer> actedThisRound = new HashSet<>();
     private HandShowdownResult pendingShowdown = null;
+    /** 跑牌开始时的公牌张数；-1 表示未在跑牌 */
+    private int runoutEntryCommunitySize = -1;
+    /** 河牌已发完，等待延迟摊牌（河牌阶段 all-in 除外） */
+    private boolean awaitingRunoutShowdown = false;
     public GameManager(Table table,int smallBlind, int bigBlind){
         this.table = table;
         this.evaluator = new HandEvaluator();
@@ -61,6 +65,8 @@ public class GameManager {
         table.setCurrentTurnIndex(firstPlayerIndex);
         actedThisRound.clear();
         pendingShowdown = null;
+        runoutEntryCommunitySize = -1;
+        awaitingRunoutShowdown = false;
     }
 
     public HandShowdownResult consumePendingShowdown() {
@@ -93,7 +99,25 @@ public class GameManager {
         }
         player.addChips(amount);
         player.addSessionBuyIn(amount);
+        player.setWillRebuy(true);
         player.resetForNewHand();
+    }
+
+    /**
+     * 稍后再说：本轮不再询问补码，下一局开始前须手动补码或等待他人。
+     */
+    public void playerDeclineRebuy(int seatIndex) {
+        Player player = table.getSeats()[seatIndex];
+        if (player == null) {
+            throw new IllegalStateException("座位无人");
+        }
+        if (player.getChips() > 0) {
+            throw new IllegalStateException("仍有筹码，无需处理补码");
+        }
+        if (!player.isWillRebuy()) {
+            throw new IllegalStateException("已选择稍后再说");
+        }
+        player.setWillRebuy(false);
     }
 
     public boolean canStartNewHand() {
@@ -525,7 +549,7 @@ public class GameManager {
 
     /** 全员无法行动时是否还需继续跑牌（公牌未满且尚未摊牌） */
     public boolean needsRunout() {
-        if (pendingShowdown != null) {
+        if (pendingShowdown != null || awaitingRunoutShowdown) {
             return false;
         }
         if (table.getCommunityCards().size() >= 5) {
@@ -538,24 +562,52 @@ public class GameManager {
     }
 
     /**
-     * 跑牌：发一轮公牌；发满 5 张后摊牌。
+     * 跑牌：发一轮公牌；发满 5 张后按规则延迟或立即摊牌。
      *
      * @return true 表示后续还有未发的街
      */
     public boolean advanceRunoutStreet() {
         if (table.getCommunityCards().size() >= 5) {
-            if (pendingShowdown == null) {
-                settleHand();
-            }
             return false;
         }
+        markRunoutStarted();
         int need = table.getCommunityCards().isEmpty() ? 3 : 1;
         advanceStreet(need);
         if (table.getCommunityCards().size() >= 5) {
-            settleHand();
+            if (runoutEntryCommunitySize == 4) {
+                settleHand();
+                clearRunoutState();
+                return false;
+            }
+            awaitingRunoutShowdown = true;
             return false;
         }
         return true;
+    }
+
+    /** 河牌已发完且需等待后再摊牌（非河牌阶段 all-in） */
+    public boolean needsDelayedRunoutShowdown() {
+        return awaitingRunoutShowdown && pendingShowdown == null;
+    }
+
+    /** 跑牌结束后延迟摊牌 */
+    public void settleRunoutHand() {
+        if (!awaitingRunoutShowdown || pendingShowdown != null) {
+            return;
+        }
+        settleHand();
+        clearRunoutState();
+    }
+
+    private void markRunoutStarted() {
+        if (runoutEntryCommunitySize < 0) {
+            runoutEntryCommunitySize = table.getCommunityCards().size();
+        }
+    }
+
+    private void clearRunoutState() {
+        runoutEntryCommunitySize = -1;
+        awaitingRunoutShowdown = false;
     }
 
     private void advanceToNextStreetOrShowdown(){

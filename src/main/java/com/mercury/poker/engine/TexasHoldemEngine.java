@@ -64,6 +64,11 @@ public class TexasHoldemEngine implements GameEngine {
     }
 
     @Override
+    public void playerDeclineRebuy(int seatIndex) {
+        gameManager.playerDeclineRebuy(seatIndex);
+    }
+
+    @Override
     public boolean canStartNewHand() {
         return gameManager.canStartNewHand();
     }
@@ -76,5 +81,15 @@ public class TexasHoldemEngine implements GameEngine {
     @Override
     public boolean advanceRunoutStreet() {
         return gameManager.advanceRunoutStreet();
+    }
+
+    @Override
+    public boolean needsDelayedRunoutShowdown() {
+        return gameManager.needsDelayedRunoutShowdown();
+    }
+
+    @Override
+    public void settleRunoutHand() {
+        gameManager.settleRunoutHand();
     }
 }

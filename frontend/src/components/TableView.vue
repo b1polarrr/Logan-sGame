@@ -25,10 +25,11 @@ const emit = defineEmits<{
   call: []
   raise: [amount: number]
   rebuy: [amount: number]
+  declineRebuy: []
   ready: []
 }>()
 
-const rebuyDismissed = ref(false)
+const profitExpanded = ref(true)
 const handEverStarted = ref(false)
 const raiseSliderTotal = ref(0)
 
@@ -71,13 +72,9 @@ const waitingOthersReady = computed(
 
 watch(
   () => props.snapshot.currentTurnIndex,
-  (turnIndex, previousTurnIndex) => {
+  (turnIndex) => {
     if (turnIndex >= 0) {
       handEverStarted.value = true
-      rebuyDismissed.value = false
-    }
-    if (previousTurnIndex != null && previousTurnIndex >= 0 && turnIndex < 0) {
-      rebuyDismissed.value = false
     }
   },
   { immediate: true },
@@ -87,7 +84,6 @@ watch(
   () => props.snapshot.roomId,
   () => {
     handEverStarted.value = false
-    rebuyDismissed.value = false
   },
 )
 
@@ -114,36 +110,56 @@ const amStillInHand = computed(() => {
   return false
 })
 
-const needsRebuy = computed(
+const showRebuyModal = computed(
   () =>
     isSeated.value &&
     myPlayer.value != null &&
     myPlayer.value.chips === 0 &&
-    !amStillInHand.value,
+    myPlayer.value.willRebuy &&
+    !amStillInHand.value &&
+    !props.showdownResult,
 )
 
-const showRebuyModal = computed(() => needsRebuy.value && !rebuyDismissed.value)
+const canManualRebuy = computed(
+  () =>
+    isSeated.value &&
+    myPlayer.value != null &&
+    myPlayer.value.chips === 0 &&
+    !amStillInHand.value &&
+    !props.showdownResult,
+)
 
 function isRebuyDeferredForSeat(seatIndex: number): boolean {
-  if (seatIndex !== props.mySeatIndex || !rebuyDismissed.value) {
-    return false
-  }
   const player = props.snapshot.players.find((p) => p.seatIndex === seatIndex)
-  if (!player || player.chips !== 0) {
+  if (!player || player.chips !== 0 || player.willRebuy) {
     return false
   }
-  if (player.isFolded) {
+  if (player.isFolded && props.snapshot.currentTurnIndex >= 0) {
     return false
   }
   if (props.showdownResult) {
     return true
   }
-  return !player.isAllIn
+  if (props.snapshot.currentTurnIndex >= 0) {
+    return !player.isAllIn
+  }
+  return true
 }
 
 const profitRows = computed(() =>
   [...props.snapshot.players].sort((left, right) => left.seatIndex - right.seatIndex),
 )
+
+const winnerSeatIndices = computed(() => {
+  if (!props.showdownResult) {
+    return new Set<number>()
+  }
+  return new Set(
+    props.showdownResult.players
+      .filter((player) => player.isWinner)
+      .map((player) => player.seatIndex),
+  )
+})
 
 function formatProfit(profit: number): string {
   const label = formatChips(Math.abs(profit), props.bigBlind)
@@ -365,22 +381,36 @@ function shouldShowCards(player: TableSnapshot['players'][0] | null, seatIndex: 
   return false
 }
 
-watch(
-  () => myPlayer.value?.chips,
-  (chips) => {
-    if (chips != null && chips > 0) {
-      rebuyDismissed.value = false
-    }
-  },
-)
-
 </script>
 
 <template>
   <main class="table-view">
     <aside v-if="profitRows.length > 0" class="profit-panel">
-      <div class="profit-panel-title">本场盈亏</div>
-      <ul class="profit-list">
+      <div
+        class="profit-panel-header"
+        :class="{ expanded: profitExpanded }"
+        @click="profitExpanded = !profitExpanded"
+      >
+        <button
+          type="button"
+          class="profit-toggle"
+          :aria-expanded="profitExpanded"
+          aria-label="展开或收起本场盈亏"
+        >
+          <span class="profit-chevron" :class="{ expanded: profitExpanded }" />
+        </button>
+        <span class="profit-panel-title">本场盈亏</span>
+        <button
+          v-if="canManualRebuy"
+          type="button"
+          class="profit-rebuy-btn"
+          :disabled="!connected"
+          @click.stop="emit('rebuy', buyInAmount)"
+        >
+          补码
+        </button>
+      </div>
+      <ul v-show="profitExpanded" class="profit-list">
         <li
           v-for="player in profitRows"
           :key="'profit-' + player.seatIndex"
@@ -413,7 +443,7 @@ watch(
           <button
             type="button"
             class="rebuy-btn secondary"
-            @click="rebuyDismissed = true"
+            @click="emit('declineRebuy')"
           >
             稍后再说
           </button>
@@ -504,7 +534,7 @@ watch(
               :show-cards="shouldShowCards(slot.player, slot.seatIndex)"
               :hand-type-label="getHandTypeForSeat(slot.seatIndex)"
               :show-ready-status="needsReadyBeforeFirstHand"
-              :show-rebuy-next-hand="isRebuyDeferredForSeat(slot.seatIndex)"
+              :is-winner="winnerSeatIndices.has(slot.seatIndex)"
               @sit-down="emit('sitDown', slot.seatIndex)"
             />
           </div>
@@ -641,7 +671,10 @@ watch(
       <p v-else-if="isSeated && canClickReady" class="turn-tip">点击「准备」开始本局</p>
       <p v-else-if="isSeated && waitingOthersReady" class="turn-tip">已准备，等待其他玩家…</p>
       <p v-else-if="isSeated && isRebuyDeferredForSeat(mySeatIndex)" class="turn-tip">
-        已选择下把再补码，需补码才能参与下一局
+        已选择稍后再说，需补码后才能参与下一局
+      </p>
+      <p v-else-if="isSeated && showRebuyModal" class="turn-tip">
+        请选择补充筹码或稍后再说，全员处理完后开局
       </p>
       <p v-else-if="isSeated && betweenHands && playersWithChips.length < 2 && snapshot.players.some((player) => player.chips === 0)" class="turn-tip">
         等待玩家补充筹码，至少 2 人有筹码后自动开局…
@@ -668,21 +701,77 @@ watch(
   top: 12px;
   left: 12px;
   z-index: 10;
-  width: 168px;
-  padding: 10px 12px;
+  width: 188px;
+  padding: 8px 10px 10px;
   border-radius: 8px;
   background: rgba(0, 0, 0, 0.72);
   border: 1px solid rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(6px);
 }
 
+.profit-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+  margin-bottom: 0;
+}
+
+.profit-panel-header.expanded {
+  margin-bottom: 8px;
+}
+
+.profit-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.profit-chevron {
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid rgba(255, 255, 255, 0.45);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.45);
+  transform: rotate(-45deg);
+  transition: transform 0.15s;
+}
+
+.profit-chevron.expanded {
+  transform: rotate(45deg);
+}
+
 .profit-panel-title {
+  flex: 1;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.06em;
   color: rgba(255, 255, 255, 0.45);
-  margin-bottom: 8px;
   text-transform: uppercase;
+}
+
+.profit-rebuy-btn {
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(241, 196, 15, 0.35);
+  background: rgba(241, 196, 15, 0.15);
+  color: #f1c40f;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  flex-shrink: 0;
+}
+
+.profit-rebuy-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .profit-list {

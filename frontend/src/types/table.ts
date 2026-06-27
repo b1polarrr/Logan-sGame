@@ -10,6 +10,7 @@ export interface PlayerState {
   holeCards: string[]
   sessionProfit: number
   isReady: boolean
+  willRebuy: boolean
 }
 
 export interface TableSnapshot {
@@ -76,6 +77,7 @@ function parsePlayerState(raw: Record<string, unknown>): PlayerState {
     holeCards: Array.isArray(holeCards) ? holeCards.map(String) : [],
     sessionProfit: Number(raw.sessionProfit ?? 0),
     isReady: Boolean(raw.isReady ?? raw.is_ready),
+    willRebuy: Boolean(raw.willRebuy ?? raw.will_rebuy ?? true),
   }
 }
 
