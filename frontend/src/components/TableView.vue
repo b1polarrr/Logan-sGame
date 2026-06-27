@@ -104,10 +104,32 @@ const amStillInHand = computed(() => {
   if (props.showdownResult) {
     return false
   }
-  if (myPlayer.value.isAllIn) {
-    return true
+  if (!myPlayer.value.isAllIn) {
+    return false
   }
-  return false
+  // 局间底池已清空：上一局已结束，isAllIn 尚未 reset，不应阻塞补码
+  if (props.snapshot.currentTurnIndex < 0 && props.snapshot.pot === 0) {
+    return false
+  }
+  return true
+})
+
+/** 局间无筹码时不展示弃牌/过牌/跟注（避免灰掉的无用按钮） */
+const showGameplayActions = computed(() => {
+  if (!isSeated.value || !myPlayer.value) {
+    return false
+  }
+  if (canClickReady.value || needsReadyBeforeFirstHand.value) {
+    return false
+  }
+  if (
+    myPlayer.value.chips === 0 &&
+    props.snapshot.currentTurnIndex < 0 &&
+    !amStillInHand.value
+  ) {
+    return false
+  }
+  return true
 })
 
 const showRebuyModal = computed(
@@ -566,7 +588,7 @@ function shouldShowCards(player: TableSnapshot['players'][0] | null, seatIndex: 
         <span class="ready-waiting-text">等待全员准备后开局</span>
       </div>
 
-      <div v-else class="action-row">
+      <div v-else-if="showGameplayActions" class="action-row">
         <button
           type="button"
           class="action-btn fold"
