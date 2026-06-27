@@ -30,6 +30,7 @@ const emit = defineEmits<{
 
 const rebuyDismissed = ref(false)
 const handEverStarted = ref(false)
+const raiseSliderTotal = ref(0)
 
 const isSeated = computed(() => props.mySeatIndex >= 0)
 
@@ -183,7 +184,6 @@ const raisePresets = computed(() => {
     { key: 'min', label: '最小', amount: minRaiseTotal.value },
     { key: 'half', label: '½池', amount: halfPotTotal },
     { key: 'pot', label: '满池', amount: potTotal },
-    { key: 'allin', label: 'All-in', amount: maxRaiseTotal.value },
   ]
 
   return options.filter(
@@ -192,19 +192,20 @@ const raisePresets = computed(() => {
   )
 })
 
-function canUseRaisePreset(amount: number, presetKey?: string): boolean {
+function canUseRaisePreset(amount: number): boolean {
   const myBet = myPlayer.value?.currentBet ?? 0
   const chips = myPlayer.value?.chips ?? 0
   if (chips <= 0 || amount <= myBet) {
     return false
   }
-  if (presetKey === 'allin') {
-    return true
-  }
   if (mustAllIn.value) {
     return false
   }
   return amount >= minRaiseTotal.value && amount <= maxRaiseTotal.value
+}
+
+function selectRaisePreset(amount: number) {
+  raiseSliderTotal.value = clampRaiseTotal(amount)
 }
 
 function submitRaise(amount: number) {
@@ -221,6 +222,26 @@ function submitRaise(amount: number) {
 function submitAllIn() {
   submitRaise(maxRaiseTotal.value)
 }
+
+const canSubmitRaise = computed(() => {
+  const myBet = myPlayer.value?.currentBet ?? 0
+  return (
+    canAllIn.value &&
+    raiseSliderTotal.value > myBet &&
+    raiseSliderTotal.value >= minRaiseTotal.value &&
+    raiseSliderTotal.value <= maxRaiseTotal.value
+  )
+})
+
+watch(
+  [isMyTurn, minRaiseTotal, maxRaiseTotal],
+  () => {
+    if (isMyTurn.value) {
+      raiseSliderTotal.value = clampRaiseTotal(minRaiseTotal.value)
+    }
+  },
+  { immediate: true },
+)
 
 const seatSlots = computed(() => {
   const slots: Array<{ seatIndex: number; player: TableSnapshot['players'][0] | null }> = []
@@ -437,6 +458,7 @@ watch(
               :hole-cards="slot.player ? showHoleCards(slot.player, slot.seatIndex) : []"
               :show-cards="shouldShowCards(slot.player, slot.seatIndex)"
               :hand-type-label="getHandTypeForSeat(slot.seatIndex)"
+              :show-ready-status="needsReadyBeforeFirstHand"
               @sit-down="emit('sitDown', slot.seatIndex)"
             />
           </div>
@@ -521,20 +543,51 @@ watch(
 
       <div
         v-if="isSeated && isMyTurn && !showdownResult && !mustAllIn"
-        class="raise-preset-row"
+        class="raise-controls"
       >
-        <button
-          v-for="preset in raisePresets"
-          :key="preset.key"
-          type="button"
-          class="raise-preset-btn"
-          :class="{ allin: preset.key === 'allin' }"
-          :disabled="!connected || !canUseRaisePreset(preset.amount, preset.key)"
-          @click="submitRaise(preset.amount)"
-        >
-          <span class="preset-label">{{ preset.label }}</span>
-          <span class="preset-amount">{{ formatChips(preset.amount, bigBlind) }}</span>
-        </button>
+        <div class="raise-slider-row">
+          <div class="raise-slider-header">
+            <span class="raise-slider-label">加注至</span>
+            <strong class="raise-slider-value">{{
+              formatChips(raiseSliderTotal, bigBlind)
+            }}</strong>
+          </div>
+          <input
+            v-model.number="raiseSliderTotal"
+            type="range"
+            class="raise-slider"
+            :min="minRaiseTotal"
+            :max="maxRaiseTotal"
+            :step="bigBlind"
+            :disabled="!connected || !isMyTurn"
+          />
+          <div class="raise-slider-range">
+            <span>{{ formatChips(minRaiseTotal, bigBlind) }}</span>
+            <span>{{ formatChips(maxRaiseTotal, bigBlind) }}</span>
+          </div>
+          <button
+            type="button"
+            class="action-btn primary raise-confirm-btn"
+            :disabled="!connected || !isMyTurn || !canSubmitRaise"
+            @click="submitRaise(raiseSliderTotal)"
+          >
+            加注 {{ formatChips(raiseSliderTotal, bigBlind) }}
+          </button>
+        </div>
+
+        <div class="raise-preset-row">
+          <button
+            v-for="preset in raisePresets"
+            :key="preset.key"
+            type="button"
+            class="raise-preset-btn"
+            :disabled="!connected || !canUseRaisePreset(preset.amount)"
+            @click="selectRaisePreset(preset.amount)"
+          >
+            <span class="preset-label">{{ preset.label }}</span>
+            <span class="preset-amount">{{ formatChips(preset.amount, bigBlind) }}</span>
+          </button>
+        </div>
       </div>
 
       <p v-if="isSeated && isMyTurn" class="turn-tip active">轮到你了</p>
@@ -919,14 +972,69 @@ watch(
   opacity: 0.7;
 }
 
+.raise-controls {
+  max-width: 520px;
+  margin: 12px auto 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.raise-slider-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.raise-slider-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.raise-slider-label {
+  font-size: 13px;
+  color: #95a5a6;
+}
+
+.raise-slider-value {
+  font-size: 15px;
+  color: #3498db;
+}
+
+.raise-slider {
+  width: 100%;
+  height: 6px;
+  accent-color: #3498db;
+  cursor: pointer;
+}
+
+.raise-slider:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.raise-slider-range {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.raise-confirm-btn {
+  width: 100%;
+  margin-top: 4px;
+}
+
 .raise-preset-row {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
-  margin-top: 12px;
-  max-width: 520px;
-  margin-left: auto;
-  margin-right: auto;
 }
 
 .raise-preset-btn {
@@ -958,12 +1066,6 @@ watch(
 .raise-preset-btn:disabled {
   opacity: 0.35;
   cursor: not-allowed;
-}
-
-.raise-preset-btn.allin {
-  border-color: rgba(241, 196, 15, 0.35);
-  background: rgba(241, 196, 15, 0.12);
-  color: #f1c40f;
 }
 
 .preset-label {
@@ -1006,7 +1108,7 @@ watch(
   }
 
   .raise-preset-row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 10px;
   }
 

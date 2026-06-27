@@ -15,6 +15,7 @@ const props = defineProps<{
   holeCards: string[]
   showCards: boolean
   handTypeLabel?: string
+  showReadyStatus?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -76,7 +77,9 @@ const chipLabel = computed(() => {
       <div class="info-plate">
         <div class="name-row">
           <span class="name">{{ player.username }}</span>
-          <span v-if="player.isFolded" class="badge folded">弃牌</span>
+          <span v-if="showReadyStatus && player.isReady" class="badge ready">已准备</span>
+          <span v-else-if="showReadyStatus && player.chips > 0" class="badge not-ready">未准备</span>
+          <span v-else-if="player.isFolded" class="badge folded">弃牌</span>
           <span v-else-if="player.isAllIn" class="badge all-in">全下</span>
           <span v-else-if="!player.isOnline" class="badge offline">离线</span>
         </div>
@@ -241,6 +244,16 @@ const chipLabel = computed(() => {
   font-size: 10px;
   padding: 1px 5px;
   border-radius: 4px;
+}
+
+.badge.ready {
+  background: rgba(46, 204, 113, 0.25);
+  color: #2ecc71;
+}
+
+.badge.not-ready {
+  background: rgba(149, 165, 166, 0.15);
+  color: #7f8c8d;
 }
 
 .badge.folded {
