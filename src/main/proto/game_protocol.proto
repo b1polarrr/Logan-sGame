@@ -121,6 +121,8 @@ message TableSnapshotResponse {
   int32 current_turn_index = 5;
   repeated string community_cards = 6; // 公牌列表，如 ["S10", "HJ"] 代表黑桃10、红心J
   repeated PlayerState players = 7;     // 全场所有座位上的玩家状态
+  int32 small_blind_index = 8;
+  int32 big_blind_index = 9;
 }
 
 

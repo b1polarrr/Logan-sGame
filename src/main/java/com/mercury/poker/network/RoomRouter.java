@@ -72,7 +72,14 @@ public class RoomRouter {
         } catch (Exception exception) {
             System.err.println("指令处理失败: " + exception.getMessage());
             exception.printStackTrace();
+            sendActionError(ctx, exception);
         }
+    }
+
+    private void sendActionError(ChannelHandlerContext ctx, Exception exception) {
+        String code = exception instanceof IllegalArgumentException ? "INVALID_ACTION" : "ACTION_FAILED";
+        String message = exception.getMessage() != null ? exception.getMessage() : "操作失败";
+        SnapshotBroadcaster.getINSTANCE().sendError(ctx.channel(), code, message);
     }
 
     private void routeRoomAction(ChannelHandlerContext ctx, PlayerActionRequest request, PlayerSession session) {
@@ -86,17 +93,23 @@ public class RoomRouter {
             }
             return;
         }
-        switch (request.getActionType()) {
-            case JOIN_ROOM -> handleJoinRoom(ctx, gameEngine, session, roomId);
-            case SIT_DOWN -> handleSitDown(ctx, gameEngine, session, request.getSeatIndex());
-            case FOLD -> handleFold(gameEngine, session);
-            case CHECK -> handleCheck(gameEngine, session);
-            case CALL -> handleCall(gameEngine, session);
-            case RAISE -> handleRaise(gameEngine, session, request.getAmount());
-            case REBUY -> handleRebuy(gameEngine, session, request.getAmount());
-            case READY -> handleReady(gameEngine, session);
-            case DECLINE_REBUY -> handleDeclineRebuy(gameEngine, session);
-            default -> System.out.println("未支持的网络指令: " + request.getActionType());
+        try {
+            switch (request.getActionType()) {
+                case JOIN_ROOM -> handleJoinRoom(ctx, gameEngine, session, roomId);
+                case SIT_DOWN -> handleSitDown(ctx, gameEngine, session, request.getSeatIndex());
+                case FOLD -> handleFold(gameEngine, session);
+                case CHECK -> handleCheck(gameEngine, session);
+                case CALL -> handleCall(gameEngine, session);
+                case RAISE -> handleRaise(gameEngine, session, request.getAmount());
+                case REBUY -> handleRebuy(gameEngine, session, request.getAmount());
+                case READY -> handleReady(gameEngine, session);
+                case DECLINE_REBUY -> handleDeclineRebuy(gameEngine, session);
+                default -> System.out.println("未支持的网络指令: " + request.getActionType());
+            }
+        } catch (Exception exception) {
+            System.err.println("指令处理失败: " + exception.getMessage());
+            exception.printStackTrace();
+            sendActionError(ctx, exception);
         }
     }
 
@@ -409,6 +422,7 @@ public class RoomRouter {
     }
 
     private void broadcastSnapshot(GameEngine gameEngine, String roomId) {
+        gameEngine.repairStuckTurn();
         HandShowdownResult showdownResult = gameEngine.consumePendingShowdown();
         if (showdownResult != null) {
             SnapshotBroadcaster.getINSTANCE().broadcastShowdownReveal(gameEngine, roomId, showdownResult);

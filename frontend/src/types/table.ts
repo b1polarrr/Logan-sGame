@@ -19,6 +19,8 @@ export interface TableSnapshot {
   pot: number
   currentMaxBet: number
   dealerIndex: number
+  smallBlindIndex: number
+  bigBlindIndex: number
   currentTurnIndex: number
   communityCards: string[]
   players: PlayerState[]
@@ -90,6 +92,8 @@ export function parseTableSnapshot(raw: Record<string, unknown>): TableSnapshot 
     pot: Number(raw.pot ?? 0),
     currentMaxBet: Number(raw.currentMaxBet ?? 0),
     dealerIndex: Number(raw.dealerIndex ?? -1),
+    smallBlindIndex: Number(raw.smallBlindIndex ?? raw.small_blind_index ?? -1),
+    bigBlindIndex: Number(raw.bigBlindIndex ?? raw.big_blind_index ?? -1),
     currentTurnIndex: Number(raw.currentTurnIndex ?? -1),
     communityCards: Array.isArray(raw.communityCards)
       ? raw.communityCards.map(String)

@@ -52,4 +52,7 @@ public interface GameEngine {
 
     /** 跑牌结束后的延迟摊牌 */
     void settleRunoutHand();
+
+    /** 修正行动位卡死（已全下/无筹码仍被轮到） */
+    void repairStuckTurn();
 }

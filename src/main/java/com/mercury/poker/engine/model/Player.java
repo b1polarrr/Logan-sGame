@@ -152,6 +152,13 @@ public class Player implements Serializable {
         return isAllIn;
     }
 
+    /** 局内筹码归零时补齐全下标记，避免 isAllIn 与 chips 不一致卡住行动轮 */
+    public void syncAllInState() {
+        if (this.isActive && !this.isFolded && this.chips == 0) {
+            this.isAllIn = true;
+        }
+    }
+
     public boolean isActive() {
         return isActive;
     }

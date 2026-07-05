@@ -36,6 +36,8 @@ public class SnapshotBroadcaster {
                 .setPot(table.getPot())
                 .setCurrentMaxBet(table.getCurrentMaxBet())
                 .setDealerIndex(table.getDealerIndex())
+                .setSmallBlindIndex(table.getSmallBlindIndex())
+                .setBigBlindIndex(table.getBigBlindIndex())
                 .setCurrentTurnIndex(table.getCurrentTurnIndex());
 
         //公牌

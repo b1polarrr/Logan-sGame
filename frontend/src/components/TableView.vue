@@ -95,23 +95,20 @@ const buyInAmount = computed(() => props.defaultBuyIn ?? 1000)
 
 /** 我是否仍在本局内（含 all-in 跑牌、等待摊牌） */
 const amStillInHand = computed(() => {
-  if (!myPlayer.value || myPlayer.value.chips > 0) {
-    return false
-  }
-  if (myPlayer.value.isFolded) {
+  if (!myPlayer.value || myPlayer.value.isFolded) {
     return false
   }
   if (props.showdownResult) {
     return false
   }
-  if (!myPlayer.value.isAllIn) {
+  if (myPlayer.value.chips > 0 && !myPlayer.value.isAllIn) {
     return false
   }
   // 局间底池已清空：上一局已结束，isAllIn 尚未 reset，不应阻塞补码
   if (props.snapshot.currentTurnIndex < 0 && props.snapshot.pot === 0) {
     return false
   }
-  return true
+  return myPlayer.value.isAllIn || (myPlayer.value.chips === 0 && props.snapshot.currentTurnIndex >= 0)
 })
 
 /** 局间无筹码时不展示弃牌/过牌/跟注（避免灰掉的无用按钮） */
@@ -130,6 +127,9 @@ const showGameplayActions = computed(() => {
     props.snapshot.currentTurnIndex < 0 &&
     !amStillInHand.value
   ) {
+    return false
+  }
+  if (amStillInHand.value) {
     return false
   }
   return true
@@ -207,6 +207,15 @@ const isMyTurn = computed(
     props.snapshot.currentTurnIndex === props.mySeatIndex,
 )
 
+/** 是否可执行下注操作（有筹码且未全下） */
+const canTakeAction = computed(
+  () =>
+    isMyTurn.value &&
+    myPlayer.value != null &&
+    myPlayer.value.chips > 0 &&
+    !myPlayer.value.isAllIn,
+)
+
 const isSittingOutCurrentHand = computed(
   () =>
     isSeated.value &&
@@ -223,10 +232,10 @@ const callAmount = computed(() => {
 
 /** 剩余筹码不够跟注，只能全下 */
 const mustAllIn = computed(() => {
-  if (!myPlayer.value || callAmount.value <= 0) {
+  if (!myPlayer.value || callAmount.value <= 0 || myPlayer.value.chips <= 0) {
     return false
   }
-  return myPlayer.value.chips > 0 && myPlayer.value.chips < callAmount.value
+  return myPlayer.value.chips < callAmount.value
 })
 
 const canAllIn = computed(
@@ -234,7 +243,7 @@ const canAllIn = computed(
     myPlayer.value != null &&
     myPlayer.value.isInHand &&
     myPlayer.value.chips > 0 &&
-    isMyTurn.value,
+    canTakeAction.value,
 )
 
 const potLabel = computed(() => formatChips(displayPot.value, props.bigBlind))
@@ -334,9 +343,9 @@ const canSubmitRaise = computed(() => {
 })
 
 watch(
-  [isMyTurn, minRaiseTotal, maxRaiseTotal],
+  [canTakeAction, minRaiseTotal, maxRaiseTotal],
   () => {
-    if (isMyTurn.value) {
+    if (canTakeAction.value) {
       raiseSliderTotal.value = clampRaiseTotal(minRaiseTotal.value)
     }
   },
@@ -569,6 +578,8 @@ function shouldShowCards(player: TableSnapshot['players'][0] | null, seatIndex: 
               :is-me="slot.seatIndex === mySeatIndex"
               :is-active="slot.seatIndex === snapshot.currentTurnIndex"
               :is-dealer="slot.seatIndex === snapshot.dealerIndex"
+              :is-small-blind="slot.seatIndex === snapshot.smallBlindIndex"
+              :is-big-blind="slot.seatIndex === snapshot.bigBlindIndex"
               :hole-cards="slot.player ? showHoleCards(slot.player, slot.seatIndex) : []"
               :show-cards="shouldShowCards(slot.player, slot.seatIndex)"
               :hand-type-label="getHandTypeForSeat(slot.seatIndex)"
@@ -609,7 +620,7 @@ function shouldShowCards(player: TableSnapshot['players'][0] | null, seatIndex: 
         <button
           type="button"
           class="action-btn fold"
-          :disabled="!connected || !isMyTurn || !!showdownResult"
+          :disabled="!connected || !canTakeAction || !!showdownResult"
           @click="emit('fold')"
         >
           <span class="btn-icon">✕</span>
@@ -619,7 +630,7 @@ function shouldShowCards(player: TableSnapshot['players'][0] | null, seatIndex: 
         <button
           type="button"
           class="action-btn"
-          :disabled="!connected || !isMyTurn || callAmount > 0 || !!showdownResult"
+          :disabled="!connected || !canTakeAction || callAmount > 0 || !!showdownResult"
           @click="emit('check')"
         >
           过牌
@@ -629,7 +640,7 @@ function shouldShowCards(player: TableSnapshot['players'][0] | null, seatIndex: 
           v-if="!mustAllIn"
           type="button"
           class="action-btn primary"
-          :disabled="!connected || !isMyTurn || callAmount <= 0 || !!showdownResult"
+          :disabled="!connected || !canTakeAction || callAmount <= 0 || !!showdownResult"
           @click="emit('call')"
         >
           跟注<span v-if="callAmount > 0"> {{ formatChips(callAmount, bigBlind) }}</span>
@@ -639,7 +650,7 @@ function shouldShowCards(player: TableSnapshot['players'][0] | null, seatIndex: 
           v-else
           type="button"
           class="action-btn allin-action"
-          :disabled="!connected || !isMyTurn || !canAllIn || !!showdownResult"
+          :disabled="!connected || !canTakeAction || !canAllIn || !!showdownResult"
           @click="submitAllIn"
         >
           All-in {{ formatChips(maxRaiseTotal, bigBlind) }}
@@ -649,7 +660,7 @@ function shouldShowCards(player: TableSnapshot['players'][0] | null, seatIndex: 
           v-if="!mustAllIn && canAllIn"
           type="button"
           class="action-btn allin-action secondary"
-          :disabled="!connected || !isMyTurn || !!showdownResult"
+          :disabled="!connected || !canTakeAction || !!showdownResult"
           @click="submitAllIn"
         >
           All-in
@@ -657,7 +668,7 @@ function shouldShowCards(player: TableSnapshot['players'][0] | null, seatIndex: 
       </div>
 
       <div
-        v-if="isSeated && isMyTurn && !showdownResult && !mustAllIn"
+        v-if="canTakeAction && !showdownResult && !mustAllIn"
         class="raise-controls"
       >
         <div class="raise-slider-row">
@@ -674,7 +685,7 @@ function shouldShowCards(player: TableSnapshot['players'][0] | null, seatIndex: 
             :min="minRaiseTotal"
             :max="maxRaiseTotal"
             :step="bigBlind"
-            :disabled="!connected || !isMyTurn"
+            :disabled="!connected || !canTakeAction"
           />
           <div class="raise-slider-range">
             <span>{{ formatChips(minRaiseTotal, bigBlind) }}</span>
@@ -683,7 +694,7 @@ function shouldShowCards(player: TableSnapshot['players'][0] | null, seatIndex: 
           <button
             type="button"
             class="action-btn primary raise-confirm-btn"
-            :disabled="!connected || !isMyTurn || !canSubmitRaise"
+            :disabled="!connected || !canTakeAction || !canSubmitRaise"
             @click="submitRaise(raiseSliderTotal)"
           >
             加注 {{ formatChips(raiseSliderTotal, bigBlind) }}
@@ -705,7 +716,8 @@ function shouldShowCards(player: TableSnapshot['players'][0] | null, seatIndex: 
         </div>
       </div>
 
-      <p v-if="isSeated && isMyTurn" class="turn-tip active">轮到你了</p>
+      <p v-if="isSeated && amStillInHand && !showdownResult" class="turn-tip">已全下，等待摊牌…</p>
+      <p v-else-if="isSeated && isMyTurn && canTakeAction" class="turn-tip active">轮到你了</p>
       <p v-else-if="isSeated && isSittingOutCurrentHand" class="turn-tip">
         已补码，本局暂不参与
       </p>

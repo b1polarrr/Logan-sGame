@@ -12,6 +12,8 @@ const props = defineProps<{
   isMe: boolean
   isActive: boolean
   isDealer: boolean
+  isSmallBlind: boolean
+  isBigBlind: boolean
   holeCards: string[]
   showCards: boolean
   handTypeLabel?: string
@@ -54,8 +56,6 @@ const chipLabel = computed(() => {
       offline: player && !player.isOnline,
     }"
   >
-    <div v-if="isDealer" class="dealer-button">D</div>
-
     <div
       v-if="showCards && player && (!player.isFolded || isMe)"
       class="hole-cards"
@@ -79,6 +79,9 @@ const chipLabel = computed(() => {
           winner: isWinner,
         }"
       >
+        <div v-if="isDealer" class="dealer-button">D</div>
+        <div v-if="isSmallBlind" class="blind-button sb-button">SB</div>
+        <div v-if="isBigBlind" class="blind-button bb-button">BB</div>
         <div v-if="isWinner" class="fireworks" aria-hidden="true">
           <span v-for="particle in 12" :key="particle" class="firework-particle" />
         </div>
@@ -128,22 +131,41 @@ const chipLabel = computed(() => {
   opacity: 0.75;
 }
 
-.dealer-button {
+.dealer-button,
+.blind-button {
   position: absolute;
-  top: -6px;
-  right: -4px;
   z-index: 3;
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: #f1c40f;
-  color: #1a1a1a;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 800;
   display: flex;
   align-items: center;
   justify-content: center;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+.dealer-button {
+  top: -6px;
+  right: -8px;
+  background: #f1c40f;
+  color: #1a1a1a;
+  font-size: 11px;
+}
+
+.sb-button {
+  top: -6px;
+  left: -8px;
+  background: #3498db;
+  color: #fff;
+}
+
+.bb-button {
+  bottom: -6px;
+  left: -8px;
+  background: #e67e22;
+  color: #fff;
 }
 
 .player-pod.mine .hole-cards {

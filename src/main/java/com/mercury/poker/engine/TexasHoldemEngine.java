@@ -92,4 +92,9 @@ public class TexasHoldemEngine implements GameEngine {
     public void settleRunoutHand() {
         gameManager.settleRunoutHand();
     }
+
+    @Override
+    public void repairStuckTurn() {
+        gameManager.repairStuckTurn();
+    }
 }

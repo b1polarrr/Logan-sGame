@@ -530,7 +530,38 @@ public class GameManager {
 
     /** 还能做决策的玩家：未弃牌、未 all-in、有筹码 */
     private boolean canAct(Player p) {
-        return p != null && p.isActive() && !p.isFolded() && !p.isAllIn();
+        return p != null && p.isActive() && !p.isFolded() && !p.isAllIn() && p.getChips() > 0;
+    }
+
+    private void normalizePlayerStates() {
+        for (Player player : table.getSeats()) {
+            if (player != null) {
+                player.syncAllInState();
+            }
+        }
+    }
+
+    /**
+     * 修正行动位落在无法下注玩家上的卡死状态（如已全下仍被轮到）。
+     * 在广播快照前调用，自动跳过并推进下注轮或进入结算。
+     */
+    public void repairStuckTurn() {
+        normalizePlayerStates();
+        int maxAttempts = table.getSeats().length + 2;
+        for (int attempt = 0; attempt < maxAttempts; attempt++) {
+            if (table.getCurrentTurnIndex() < 0) {
+                break;
+            }
+            int turnIndex = table.getCurrentTurnIndex();
+            Player turnPlayer = table.getSeats()[turnIndex];
+            if (turnPlayer != null && canAct(turnPlayer)) {
+                break;
+            }
+            checkRoundOrHandOver(turnIndex);
+        }
+        if (table.getCurrentTurnIndex() >= 0 && isBettingRoundComplete() && allActedThisRound()) {
+            checkRoundOrHandOver(table.getCurrentTurnIndex());
+        }
     }
     /** 从 startIndex 的下一位起，找下一个还能行动的玩家 */
     private int getNextSeatCanAct(int startIndex) {
@@ -630,6 +661,7 @@ public class GameManager {
     }
 
     private void checkRoundOrHandOver(int actedSeatIndex){
+        normalizePlayerStates();
         //1.只剩1人-收池
         if (countPlayerInHand() <= 1){
             settleHand();
