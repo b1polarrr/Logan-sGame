@@ -134,36 +134,43 @@ const chipLabel = computed(() => {
 .dealer-button,
 .blind-button {
   position: absolute;
-  z-index: 3;
-  width: 22px;
+  z-index: 4;
   height: 22px;
-  border-radius: 50%;
-  font-size: 10px;
+  min-width: 22px;
+  padding: 0 5px;
+  border-radius: 11px;
+  font-size: 9px;
   font-weight: 800;
+  letter-spacing: -0.2px;
+  white-space: nowrap;
   display: flex;
   align-items: center;
   justify-content: center;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
 }
 
 .dealer-button {
-  top: -6px;
-  right: -8px;
+  top: -8px;
+  right: -10px;
+  width: 22px;
+  padding: 0;
+  border-radius: 50%;
   background: #f1c40f;
   color: #1a1a1a;
   font-size: 11px;
 }
 
 .sb-button {
-  top: -6px;
-  left: -8px;
+  top: -8px;
+  left: -10px;
   background: #3498db;
   color: #fff;
 }
 
 .bb-button {
-  bottom: -6px;
-  left: -8px;
+  bottom: -8px;
+  left: -10px;
   background: #e67e22;
   color: #fff;
 }
@@ -208,6 +215,7 @@ const chipLabel = computed(() => {
 
 .avatar-wrap {
   position: relative;
+  overflow: visible;
 }
 
 .avatar {

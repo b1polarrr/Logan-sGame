@@ -6,6 +6,7 @@ import ChipStack from './ChipStack.vue'
 import ShowdownStrip from './ShowdownStrip.vue'
 import { formatChips } from '../utils/chips'
 import { isHiddenCard } from '../utils/cards'
+import { resolveBlindSeatIndices } from '../utils/blinds'
 import type { ShowdownResult, TableSnapshot } from '../types/table'
 
 const props = defineProps<{
@@ -361,6 +362,15 @@ const seatSlots = computed(() => {
   return slots
 })
 
+const showPositionMarkers = computed(
+  () =>
+    props.snapshot.currentTurnIndex >= 0 || props.snapshot.communityCards.length > 0,
+)
+
+const blindSeatIndices = computed(() =>
+  resolveBlindSeatIndices(props.snapshot, props.maxSeats),
+)
+
 function getRelativeSeatIndex(seatIndex: number): number {
   if (props.mySeatIndex < 0) {
     return seatIndex
@@ -577,9 +587,13 @@ function shouldShowCards(player: TableSnapshot['players'][0] | null, seatIndex: 
               :big-blind="bigBlind"
               :is-me="slot.seatIndex === mySeatIndex"
               :is-active="slot.seatIndex === snapshot.currentTurnIndex"
-              :is-dealer="slot.seatIndex === snapshot.dealerIndex"
-              :is-small-blind="slot.seatIndex === snapshot.smallBlindIndex"
-              :is-big-blind="slot.seatIndex === snapshot.bigBlindIndex"
+              :is-dealer="showPositionMarkers && slot.seatIndex === snapshot.dealerIndex"
+              :is-small-blind="
+                showPositionMarkers && slot.seatIndex === blindSeatIndices.smallBlindIndex
+              "
+              :is-big-blind="
+                showPositionMarkers && slot.seatIndex === blindSeatIndices.bigBlindIndex
+              "
               :hole-cards="slot.player ? showHoleCards(slot.player, slot.seatIndex) : []"
               :show-cards="shouldShowCards(slot.player, slot.seatIndex)"
               :hand-type-label="getHandTypeForSeat(slot.seatIndex)"

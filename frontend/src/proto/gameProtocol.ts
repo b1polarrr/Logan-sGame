@@ -117,6 +117,8 @@ message TableSnapshotResponse {
   int32 current_turn_index = 5;
   repeated string community_cards = 6;
   repeated PlayerState players = 7;
+  int32 small_blind_index = 8;
+  int32 big_blind_index = 9;
 }
 `
 
