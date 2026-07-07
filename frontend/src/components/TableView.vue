@@ -7,7 +7,7 @@ import ShowdownStrip from './ShowdownStrip.vue'
 import { formatChips } from '../utils/chips'
 import { isHiddenCard } from '../utils/cards'
 import { resolveBlindSeatIndices } from '../utils/blinds'
-import type { ShowdownResult, TableSnapshot } from '../types/table'
+import type { PlayerState, ShowdownResult, TableSnapshot } from '../types/table'
 
 const props = defineProps<{
   connected: boolean
@@ -94,23 +94,28 @@ const myPlayer = computed(() =>
 
 const buyInAmount = computed(() => props.defaultBuyIn ?? 1000)
 
-/** 我是否仍在本局内（含 all-in 跑牌、等待摊牌） */
-const amStillInHand = computed(() => {
-  if (!myPlayer.value || myPlayer.value.isFolded) {
+/** 玩家是否仍在本局内（含 all-in 跑牌、等待摊牌） */
+function isPlayerStillInHand(player: PlayerState): boolean {
+  if (player.isFolded || !player.isInHand) {
     return false
   }
   if (props.showdownResult) {
     return false
   }
-  if (myPlayer.value.chips > 0 && !myPlayer.value.isAllIn) {
+  if (player.chips > 0 && !player.isAllIn) {
     return false
   }
-  // 局间底池已清空：上一局已结束，isAllIn 尚未 reset，不应阻塞补码
+  // 局间底池已清空：上一局已结束，isAllIn 尚未 reset，不应仍显示全下
   if (props.snapshot.currentTurnIndex < 0 && props.snapshot.pot === 0) {
     return false
   }
-  return myPlayer.value.isAllIn || (myPlayer.value.chips === 0 && props.snapshot.currentTurnIndex >= 0)
-})
+  return player.isAllIn || player.chips === 0
+}
+
+/** 我是否仍在本局内（含 all-in 跑牌、等待摊牌） */
+const amStillInHand = computed(() =>
+  myPlayer.value != null && isPlayerStillInHand(myPlayer.value),
+)
 
 /** 局间无筹码时不展示弃牌/过牌/跟注（避免灰掉的无用按钮） */
 const showGameplayActions = computed(() => {
@@ -146,14 +151,24 @@ const showRebuyModal = computed(
     !props.showdownResult,
 )
 
-const canManualRebuy = computed(
+/** 无筹码且不在本局内（含「下把玩」旁观） */
+const needsRebuy = computed(
   () =>
     isSeated.value &&
     myPlayer.value != null &&
     myPlayer.value.chips === 0 &&
-    !amStillInHand.value &&
+    !amStillInHand.value,
+)
+
+/** 局间才可实际补码（与后端 currentTurnIndex < 0 一致） */
+const canManualRebuy = computed(
+  () =>
+    needsRebuy.value &&
+    props.snapshot.currentTurnIndex < 0 &&
     !props.showdownResult,
 )
+
+const showRebuyButton = computed(() => needsRebuy.value)
 
 function isRebuyDeferredForSeat(seatIndex: number): boolean {
   const player = props.snapshot.players.find((p) => p.seatIndex === seatIndex)
@@ -215,15 +230,6 @@ const canTakeAction = computed(
     myPlayer.value != null &&
     myPlayer.value.chips > 0 &&
     !myPlayer.value.isAllIn,
-)
-
-const isSittingOutCurrentHand = computed(
-  () =>
-    isSeated.value &&
-    myPlayer.value != null &&
-    myPlayer.value.chips > 0 &&
-    !myPlayer.value.isInHand &&
-    props.snapshot.currentTurnIndex >= 0,
 )
 
 const callAmount = computed(() => {
@@ -459,10 +465,11 @@ function shouldShowCards(player: TableSnapshot['players'][0] | null, seatIndex: 
         </button>
         <span class="profit-panel-title">本场盈亏</span>
         <button
-          v-if="canManualRebuy"
+          v-if="showRebuyButton"
           type="button"
           class="profit-rebuy-btn"
-          :disabled="!connected"
+          :disabled="!connected || !canManualRebuy"
+          :title="canManualRebuy ? undefined : (showdownResult ? '摊牌结束后可补码' : '本局结束后可补码')"
           @click.stop="emit('rebuy', buyInAmount)"
         >
           补码
@@ -598,6 +605,7 @@ function shouldShowCards(player: TableSnapshot['players'][0] | null, seatIndex: 
               :show-cards="shouldShowCards(slot.player, slot.seatIndex)"
               :hand-type-label="getHandTypeForSeat(slot.seatIndex)"
               :show-ready-status="needsReadyBeforeFirstHand"
+              :is-still-in-hand="slot.player ? isPlayerStillInHand(slot.player) : false"
               :is-winner="winnerSeatIndices.has(slot.seatIndex)"
               @sit-down="emit('sitDown', slot.seatIndex)"
             />
@@ -732,9 +740,6 @@ function shouldShowCards(player: TableSnapshot['players'][0] | null, seatIndex: 
 
       <p v-if="isSeated && amStillInHand && !showdownResult" class="turn-tip">已全下，等待摊牌…</p>
       <p v-else-if="isSeated && isMyTurn && canTakeAction" class="turn-tip active">轮到你了</p>
-      <p v-else-if="isSeated && isSittingOutCurrentHand" class="turn-tip">
-        已补码，本局暂不参与
-      </p>
       <p v-else-if="isSeated && showdownResult" class="turn-tip">摊牌结算中…</p>
       <p v-else-if="isSeated && canClickReady" class="turn-tip">点击「准备」开始本局</p>
       <p v-else-if="isSeated && waitingOthersReady" class="turn-tip">已准备，等待其他玩家…</p>

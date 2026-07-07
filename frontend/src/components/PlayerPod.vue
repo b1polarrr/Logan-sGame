@@ -18,6 +18,7 @@ const props = defineProps<{
   showCards: boolean
   handTypeLabel?: string
   showReadyStatus?: boolean
+  isStillInHand?: boolean
   isWinner?: boolean
 }>()
 
@@ -97,8 +98,8 @@ const chipLabel = computed(() => {
           <span v-if="showReadyStatus && player.isReady" class="badge ready">已准备</span>
           <span v-else-if="showReadyStatus && player.chips > 0" class="badge not-ready">未准备</span>
           <span v-else-if="player.isFolded" class="badge folded">弃牌</span>
+          <span v-else-if="player.isAllIn && isStillInHand" class="badge all-in">全下</span>
           <span v-else-if="player.chips === 0 && player.willRebuy" class="badge rebuying">补码中</span>
-          <span v-else-if="player.isAllIn" class="badge all-in">全下</span>
           <span v-else-if="player.chips === 0 && !player.willRebuy" class="badge rebuy-next">下把玩</span>
           <span v-else-if="!player.isOnline" class="badge offline">离线</span>
         </div>

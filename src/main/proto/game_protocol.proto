@@ -109,7 +109,7 @@ message PlayerState {
   int32 session_profit = 10;      // 本场盈亏 = 当前筹码 - 累计买入
   bool is_ready = 11;             // 是否已准备（局间等待时使用）
   bool will_rebuy = 12;           // 是否补码（询问意愿；询问后选稍后再说为 false，补码后为 true）
-  bool is_active = 13;            // 是否参与当前局（补码后紧接一局为 false）
+  bool is_active = 13;            // 是否参与当前局
 }
 
 // 4. 服务器广播给所有人的完整牌桌快照（全场同步的核心）

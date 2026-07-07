@@ -22,8 +22,6 @@ public class Player implements Serializable {
     private boolean isReady; //是否已准备（局间等待开局）
     /** 是否补码：初始 true；询问后选稍后再说为 false；补码后为 true */
     private boolean willRebuy;
-    /** 局间补码后跳过紧接的一局（筹码已到账但本局不参与） */
-    private boolean rebuyPendingSitOut;
 
     public Player (String userId,String username,int chips){
         this.userId = userId;
@@ -35,7 +33,6 @@ public class Player implements Serializable {
         this.isOnline = true;
         this.isReady = false;
         this.willRebuy = true;
-        this.rebuyPendingSitOut = false;
         this.currentBet = 0;
         this.handContribution = 0;
         this.isActive = chips > 0;
@@ -48,17 +45,13 @@ public class Player implements Serializable {
         this.handContribution = 0;
         this.isFolded = false;
         this.isAllIn = false;
-        this.isActive = this.chips > 0 && !this.rebuyPendingSitOut;
-        if (this.rebuyPendingSitOut) {
-            this.rebuyPendingSitOut = false;
-        }
+        this.isActive = this.chips > 0;
     }
 
-    /** 局间补码：筹码到账，清除全下标记，本局不参与 */
+    /** 局间补码：筹码到账，清除全下标记，参与下一局 */
     public void applyBetweenHandsRebuy() {
         this.isAllIn = false;
-        this.rebuyPendingSitOut = true;
-        this.isActive = false;
+        this.isActive = this.chips > 0;
     }
 
     //下注
@@ -185,9 +178,5 @@ public class Player implements Serializable {
 
     public void setWillRebuy(boolean willRebuy) {
         this.willRebuy = willRebuy;
-    }
-
-    public boolean isRebuyPendingSitOut() {
-        return rebuyPendingSitOut;
     }
 }
