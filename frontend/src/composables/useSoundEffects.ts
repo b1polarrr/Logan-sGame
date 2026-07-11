@@ -17,14 +17,15 @@ export type SoundName = keyof typeof SOUND_FILES
 
 const MUTED_KEY = 'poker_aa_sound_muted'
 
-let unlocked = false
 let muted = localStorage.getItem(MUTED_KEY) === '1'
 
-function createAudio(src: string): HTMLAudioElement {
-  const audio = new Audio(src)
-  audio.preload = 'auto'
-  return audio
-}
+// 恢复音效时取消注释：
+// let unlocked = false
+// function createAudio(src: string): HTMLAudioElement {
+//   const audio = new Audio(src)
+//   audio.preload = 'auto'
+//   return audio
+// }
 
 /** 浏览器需用户手势后才能播音；在坐下/准备/操作时调用一次即可 */
 export function unlockAudio() {
