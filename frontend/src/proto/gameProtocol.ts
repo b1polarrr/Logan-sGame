@@ -13,6 +13,8 @@ export const ACTION_MAP = {
   REBUY: 10,
   READY: 11,
   DECLINE_REBUY: 12,
+  STAND_UP: 13,
+  LOGIN: 14,
 } as const
 
 export const GAME_TYPE_MAP = {
@@ -42,6 +44,8 @@ enum ActionType {
   REBUY = 10;
   READY = 11;
   DECLINE_REBUY = 12;
+  STAND_UP = 13;
+  LOGIN = 14;
 }
 message PlayerActionRequest {
   ActionType action_type = 1;
@@ -53,6 +57,8 @@ message PlayerActionRequest {
   int32 small_blind = 7;
   int32 big_blind = 8;
   string session_token = 9;
+  string username = 10;
+  string password = 11;
 }
 message RoomInfo {
   string room_id = 1;
@@ -67,6 +73,9 @@ message RoomListResponse {
 }
 message SessionConnectedResponse {
   string session_token = 1;
+  string user_id = 2;
+  string username = 3;
+  bool authenticated = 4;
 }
 message ErrorResponse {
   string code = 1;
@@ -94,20 +103,26 @@ message ServerMessage {
   ErrorResponse error = 5;
   ShowdownResult showdown = 6;
 }
+enum HandStatus {
+  HAND_STATUS_UNKNOWN = 0;
+  SITTING_OUT = 1;
+  IN_HAND = 2;
+  FOLDED = 3;
+  ALL_IN = 4;
+  STOOD_UP = 5;
+}
 message PlayerState {
   string user_id = 1;
   string username = 2;
   int32 seat_index = 3;
   int32 chips = 4;
   int32 current_bet = 5;
-  bool is_folded = 6;
-  bool is_all_in = 7;
+  HandStatus hand_status = 6;
   bool is_online = 8;
   repeated string hole_cards = 9;
   int32 session_profit = 10;
   bool is_ready = 11;
   bool will_rebuy = 12;
-  bool is_active = 13;
 }
 message TableSnapshotResponse {
   string room_id = 1;

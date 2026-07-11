@@ -29,13 +29,30 @@ docker exec -it poker_aa-kafka /opt/kafka/bin/kafka-console-consumer.sh --bootst
 docker compose -f deploy/docker-compose.yml down
 ```
 
-## 仅 Redis（IDEA 本地跑游戏服）
+## 仅 Redis + MySQL（IDEA 本地跑游戏服）
 
 ```powershell
-docker compose -f deploy/docker-compose.yml up -d redis
+docker compose -f deploy/docker-compose.yml up -d redis mysql
 ```
 
-IDEA 运行 `PokerNettyServer`，`REDIS_URL=redis://localhost:6379`（默认即可）。
+- Redis：`localhost:6379`
+- MySQL：`localhost:3306`，库名 `poker_aa`，用户 `poker` / `poker123`
+- 账号表由 `deploy/mysql/init.sql` 在**首次**建库时自动执行
+
+IDEA 运行 `PokerNettyServer` 时建议环境变量：
+
+```
+REDIS_URL=redis://localhost:6379
+JDBC_URL=jdbc:mysql://localhost:3306/poker_aa?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+JDBC_USER=poker
+JDBC_PASSWORD=poker123
+```
+
+验证表是否存在：
+
+```powershell
+docker exec -it poker_aa-mysql mysql -upoker -ppoker123 poker_aa -e "SHOW TABLES; DESCRIBE users;"
+```
 
 ## Kubernetes（阶段 5）
 

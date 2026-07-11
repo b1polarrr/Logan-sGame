@@ -12,7 +12,7 @@ const emit = defineEmits<{
   connect: []
   refreshRoomList: []
   createRoom: [options: { maxSeats: number; smallBlind: number; bigBlind: number }]
-  joinRoom: [roomId: string, seatIndex: number]
+  joinRoom: [roomId: string]
   'update:currentRoomId': [value: string]
 }>()
 
@@ -20,7 +20,6 @@ const wsHost = location.host
 const maxSeats = ref(6)
 const smallBlind = ref(10)
 const bigBlind = ref(20)
-const joinSeatIndex = ref(0)
 
 function formatGameType(gameType: number): string {
   if (gameType === 1) return '德州扑克'
@@ -39,11 +38,11 @@ function handleJoinCurrentRoom() {
   if (!props.currentRoomId.trim()) {
     return
   }
-  emit('joinRoom', props.currentRoomId.trim(), joinSeatIndex.value)
+  emit('joinRoom', props.currentRoomId.trim())
 }
 
 function handleJoinRoom(roomId: string) {
-  emit('joinRoom', roomId, joinSeatIndex.value)
+  emit('joinRoom', roomId)
 }
 
 function updateRoomId(event: Event) {
@@ -106,10 +105,6 @@ function updateRoomId(event: Event) {
               placeholder="创建后自动填入"
               @input="updateRoomId"
             />
-          </label>
-          <label>
-            <span>预选座位</span>
-            <input v-model.number="joinSeatIndex" type="number" min="0" max="8" />
           </label>
         </div>
         <button
@@ -268,8 +263,8 @@ function updateRoomId(event: Event) {
   margin-bottom: 16px;
 }
 
-.form-grid .wide {
-  grid-column: span 2;
+.join-panel .form-grid .wide {
+  grid-column: 1 / -1;
 }
 
 label {

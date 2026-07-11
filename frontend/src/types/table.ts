@@ -1,17 +1,17 @@
+export type HandStatus = 'SITTING_OUT' | 'IN_HAND' | 'FOLDED' | 'ALL_IN' | 'STOOD_UP'
+
 export interface PlayerState {
   userId: string
   username: string
   seatIndex: number
   chips: number
   currentBet: number
-  isFolded: boolean
-  isAllIn: boolean
+  handStatus: HandStatus
   isOnline: boolean
   holeCards: string[]
   sessionProfit: number
   isReady: boolean
   willRebuy: boolean
-  isInHand: boolean
 }
 
 export interface TableSnapshot {
@@ -40,6 +40,59 @@ export interface ShowdownResult {
   potTotal: number
   reason: string
   players: ShowdownPlayerResult[]
+}
+
+const HAND_STATUS_BY_NUMBER: Record<number, HandStatus> = {
+  1: 'SITTING_OUT',
+  2: 'IN_HAND',
+  3: 'FOLDED',
+  4: 'ALL_IN',
+  5: 'STOOD_UP',
+}
+
+const HAND_STATUS_NAMES = new Set<HandStatus>([
+  'SITTING_OUT',
+  'IN_HAND',
+  'FOLDED',
+  'ALL_IN',
+  'STOOD_UP',
+])
+
+export function parseHandStatus(raw: unknown): HandStatus {
+  if (typeof raw === 'number') {
+    return HAND_STATUS_BY_NUMBER[raw] ?? 'SITTING_OUT'
+  }
+  if (typeof raw === 'string') {
+    const normalized = raw.replace(/^HAND_STATUS_/, '') as HandStatus
+    if (HAND_STATUS_NAMES.has(normalized)) {
+      return normalized
+    }
+    if (HAND_STATUS_NAMES.has(raw as HandStatus)) {
+      return raw as HandStatus
+    }
+  }
+  return 'SITTING_OUT'
+}
+
+/** 是否参与当前局（含弃牌、全下；不含起身/旁观） */
+export function isParticipating(player: PlayerState): boolean {
+  return (
+    player.handStatus === 'IN_HAND' ||
+    player.handStatus === 'FOLDED' ||
+    player.handStatus === 'ALL_IN'
+  )
+}
+
+export function isFolded(player: PlayerState): boolean {
+  return player.handStatus === 'FOLDED'
+}
+
+export function isAllIn(player: PlayerState): boolean {
+  return player.handStatus === 'ALL_IN'
+}
+
+export function isStoodUp(player: PlayerState): boolean {
+  return player.handStatus === 'STOOD_UP'
 }
 
 function parseShowdownPlayer(raw: Record<string, unknown>): ShowdownPlayerResult {
@@ -74,14 +127,12 @@ function parsePlayerState(raw: Record<string, unknown>): PlayerState {
     seatIndex: Number(raw.seatIndex ?? 0),
     chips: Number(raw.chips ?? 0),
     currentBet: Number(raw.currentBet ?? 0),
-    isFolded: Boolean(raw.isFolded),
-    isAllIn: Boolean(raw.isAllIn),
+    handStatus: parseHandStatus(raw.handStatus ?? raw.hand_status),
     isOnline: Boolean(raw.isOnline),
     holeCards: Array.isArray(holeCards) ? holeCards.map(String) : [],
     sessionProfit: Number(raw.sessionProfit ?? 0),
     isReady: Boolean(raw.isReady ?? raw.is_ready),
     willRebuy: Boolean(raw.willRebuy ?? raw.will_rebuy ?? true),
-    isInHand: Boolean(raw.isInHand ?? raw.is_active ?? raw.isActive ?? true),
   }
 }
 

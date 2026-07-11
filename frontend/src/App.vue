@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import AppHeader from './components/AppHeader.vue'
+import LoginView from './components/LoginView.vue'
 import LobbyView from './components/LobbyView.vue'
 import TableView from './components/TableView.vue'
 import LogPanel from './components/LogPanel.vue'
@@ -10,6 +11,8 @@ const gameSocket = useGameSocket()
 
 const {
   connected,
+  authenticated,
+  username,
   logs,
   showdownResult,
   rooms,
@@ -18,12 +21,16 @@ const {
   inTable,
   mySeatIndex,
   sessionToken,
+  loginBusy,
+  loginError,
   connect,
   disconnect,
+  login,
   refreshRoomList,
   createRoom,
   joinRoom,
   sitDown,
+  standUp,
   fold,
   check,
   call,
@@ -61,12 +68,16 @@ async function handleCreateRoom(options: {
 }) {
   await createRoom(options)
   if (currentRoomId.value) {
-    await joinRoom(currentRoomId.value, 0)
+    await joinRoom(currentRoomId.value)
   }
 }
 
 function updateCurrentRoomId(value: string) {
   currentRoomId.value = value
+}
+
+function handleLogin(payload: { username: string; password: string }) {
+  login(payload.username, payload.password)
 }
 
 onMounted(() => {
@@ -78,15 +89,26 @@ onMounted(() => {
   <div class="app-shell">
     <AppHeader
       :connected="connected"
+      :authenticated="authenticated"
+      :username="username"
       :session-token="sessionToken"
-      :show-back="inTable && !!tableSnapshot"
+      :show-back="authenticated && inTable && !!tableSnapshot"
       @connect="connect"
       @disconnect="disconnect"
       @back-to-lobby="backToLobby"
     />
 
+    <LoginView
+      v-if="!authenticated"
+      :connected="connected"
+      :busy="loginBusy"
+      :error-message="loginError"
+      @connect="connect"
+      @login="handleLogin"
+    />
+
     <TableView
-      v-if="inTable && tableSnapshot"
+      v-else-if="inTable && tableSnapshot"
       :connected="connected"
       :snapshot="tableSnapshot"
       :my-seat-index="mySeatIndex"
@@ -95,6 +117,7 @@ onMounted(() => {
       :default-buy-in="1000"
       :showdown-result="showdownResult"
       @sit-down="sitDown"
+      @stand-up="standUp"
       @fold="fold"
       @check="check"
       @call="call"

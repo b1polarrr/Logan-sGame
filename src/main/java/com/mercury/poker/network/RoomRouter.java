@@ -2,10 +2,12 @@ package com.mercury.poker.network;
 
 import com.mercury.poker.engine.GameEngine;
 import com.mercury.poker.engine.HandShowdownResult;
+import com.mercury.poker.db.UserAccount;
+import com.mercury.poker.db.UserRepository;
 import com.mercury.poker.engine.redis.LobbyRoomMeta;
 import com.mercury.poker.engine.redis.RedisRoomRegistry;
 import com.mercury.poker.engine.redis.RedisSessionStore;
-import com.mercury.poker.events.EventPublisher;
+// import com.mercury.poker.events.EventPublisher;
 import com.mercury.poker.engine.model.Player;
 import com.mercury.poker.engine.model.Table;
 import com.mercury.poker.network.protocol.PlayerActionRequest;
@@ -64,10 +66,20 @@ public class RoomRouter {
         }
         try {
             switch (request.getActionType()) {
-                case CREATE_ROOM -> handleCreateRoom(ctx, session, request);
-                case LIST_ROOMS -> handleListRooms(ctx);
+                case LOGIN -> handleLogin(ctx, session, request);
+                case CREATE_ROOM -> {
+                    requireAuthenticated(session);
+                    handleCreateRoom(ctx, session, request);
+                }
+                case LIST_ROOMS -> {
+                    requireAuthenticated(session);
+                    handleListRooms(ctx);
+                }
                 case RECONNECT -> handleReconnect(ctx, request);
-                default -> routeRoomAction(ctx, request, session);
+                default -> {
+                    requireAuthenticated(session);
+                    routeRoomAction(ctx, request, session);
+                }
             }
         } catch (Exception exception) {
             System.err.println("指令处理失败: " + exception.getMessage());
@@ -76,8 +88,59 @@ public class RoomRouter {
         }
     }
 
+    private void requireAuthenticated(PlayerSession session) {
+        if (!session.isAuthenticated()) {
+            throw new IllegalArgumentException("请先登录");
+        }
+    }
+
+    private void handleLogin(ChannelHandlerContext ctx, PlayerSession session, PlayerActionRequest request) {
+        if (session.isAuthenticated()) {
+            SnapshotBroadcaster.getINSTANCE().sendSessionConnected(
+                    ctx.channel(),
+                    session.getSessionToken(),
+                    session.getUserId(),
+                    session.getUsername(),
+                    true
+            );
+            return;
+        }
+        if (session.getRoomId() != null && !session.getRoomId().isBlank()) {
+            throw new IllegalArgumentException("已在房间内，无法切换账号");
+        }
+
+        UserAccount account = UserRepository.getINSTANCE().loginOrCreate(
+                request.getUsername(),
+                request.getPassword()
+        );
+        SessionManager.getINSTANCE().bindLogin(ctx.channel(), account.getUserId(), account.getUsername());
+        PlayerSession updatedSession = SessionManager.getINSTANCE().getSession(ctx.channel());
+        SnapshotBroadcaster.getINSTANCE().sendSessionConnected(
+                ctx.channel(),
+                updatedSession.getSessionToken(),
+                updatedSession.getUserId(),
+                updatedSession.getUsername(),
+                true
+        );
+        handleListRooms(ctx);
+        System.out.println("玩家登录成功: " + account.getUsername() + " (" + account.getUserId() + ")");
+    }
+
     private void sendActionError(ChannelHandlerContext ctx, Exception exception) {
-        String code = exception instanceof IllegalArgumentException ? "INVALID_ACTION" : "ACTION_FAILED";
+        String code;
+        if (exception instanceof IllegalArgumentException
+                && exception.getMessage() != null
+                && exception.getMessage().contains("登录")) {
+            code = "AUTH_REQUIRED";
+        } else if (exception instanceof IllegalArgumentException
+                && exception.getMessage() != null
+                && (exception.getMessage().contains("密码") || exception.getMessage().contains("用户名"))) {
+            code = "LOGIN_FAILED";
+        } else if (exception instanceof IllegalArgumentException) {
+            code = "INVALID_ACTION";
+        } else {
+            code = "ACTION_FAILED";
+        }
         String message = exception.getMessage() != null ? exception.getMessage() : "操作失败";
         SnapshotBroadcaster.getINSTANCE().sendError(ctx.channel(), code, message);
     }
@@ -104,6 +167,7 @@ public class RoomRouter {
                 case REBUY -> handleRebuy(gameEngine, session, request.getAmount());
                 case READY -> handleReady(gameEngine, session);
                 case DECLINE_REBUY -> handleDeclineRebuy(gameEngine, session);
+                case STAND_UP -> handleStandUp(gameEngine, session);
                 default -> System.out.println("未支持的网络指令: " + request.getActionType());
             }
         } catch (Exception exception) {
@@ -118,7 +182,7 @@ public class RoomRouter {
         int seatIndex = session.getSeatIndex();
         gameEngine.playerBet(seatIndex, targetTotalBet);
         System.out.println("座位 " + seatIndex + " 加注到 " + targetTotalBet);
-        publishPlayerAction(session, "RAISE", seatIndex, targetTotalBet);
+        // publishPlayerAction(session, "RAISE", seatIndex, targetTotalBet);
         broadcastSnapshot(gameEngine, session.getRoomId());
     }
 
@@ -130,7 +194,7 @@ public class RoomRouter {
         int actualTotal = player.getCurrentBet();
         System.out.println("座位 " + seatIndex + " 跟注到 " + actualTotal
                 + (player.isAllIn() ? "（全下）" : ""));
-        publishPlayerAction(session, player.isAllIn() ? "ALL_IN" : "CALL", seatIndex, actualTotal);
+        // publishPlayerAction(session, player.isAllIn() ? "ALL_IN" : "CALL", seatIndex, actualTotal);
         broadcastSnapshot(gameEngine, session.getRoomId());
     }
 
@@ -140,7 +204,7 @@ public class RoomRouter {
         Player player = gameEngine.getTable().getSeats()[seatIndex];
         gameEngine.playerBet(seatIndex, player.getCurrentBet());
         System.out.println("座位 " + seatIndex + " 过牌");
-        publishPlayerAction(session, "CHECK", seatIndex, player.getCurrentBet());
+        // publishPlayerAction(session, "CHECK", seatIndex, player.getCurrentBet());
         broadcastSnapshot(gameEngine, session.getRoomId());
     }
 
@@ -149,7 +213,7 @@ public class RoomRouter {
         int seatIndex = session.getSeatIndex();
         gameEngine.playerFold(seatIndex);
         System.out.println("座位 " + seatIndex + " 弃牌");
-        publishPlayerAction(session, "FOLD", seatIndex, 0);
+        // publishPlayerAction(session, "FOLD", seatIndex, 0);
         broadcastSnapshot(gameEngine, session.getRoomId());
     }
 
@@ -159,7 +223,7 @@ public class RoomRouter {
         int rebuyAmount = amount > 0 ? amount : DEFAULT_BUY_IN;
         gameEngine.playerRebuy(seatIndex, rebuyAmount);
         System.out.println("座位 " + seatIndex + " 补充筹码 " + rebuyAmount);
-        publishPlayerAction(session, "REBUY", seatIndex, rebuyAmount);
+        // publishPlayerAction(session, "REBUY", seatIndex, rebuyAmount);
         tryStartNextHandIfEligible(gameEngine, session.getRoomId());
         broadcastSnapshot(gameEngine, session.getRoomId());
     }
@@ -169,7 +233,7 @@ public class RoomRouter {
         int seatIndex = session.getSeatIndex();
         gameEngine.playerDeclineRebuy(seatIndex);
         System.out.println("座位 " + seatIndex + " 选择稍后再说（不补码）");
-        publishPlayerAction(session, "DECLINE_REBUY", seatIndex, 0);
+        // publishPlayerAction(session, "DECLINE_REBUY", seatIndex, 0);
         tryStartNextHandIfEligible(gameEngine, session.getRoomId());
         broadcastSnapshot(gameEngine, session.getRoomId());
     }
@@ -181,27 +245,50 @@ public class RoomRouter {
         }
         int seatIndex = session.getSeatIndex();
         Player player = gameEngine.getTable().getSeats()[seatIndex];
+        if (player.isStoodUp()) {
+            throw new IllegalStateException("起身状态无法准备，请先坐下");
+        }
         if (player.getChips() <= 0) {
             throw new IllegalStateException("筹码不足，请先补充筹码");
         }
         player.setReady(true);
         System.out.println("座位 " + seatIndex + " 已准备");
-        publishEvent("player_ready", Map.of(
-                "roomId", session.getRoomId(),
-                "userId", session.getUserId(),
-                "username", session.getUsername(),
-                "seatIndex", String.valueOf(seatIndex)
-        ));
+        // publishEvent("player_ready", Map.of(
+        //         "roomId", session.getRoomId(),
+        //         "userId", session.getUserId(),
+        //         "username", session.getUsername(),
+        //         "seatIndex", String.valueOf(seatIndex)
+        // ));
         tryStartHandIfAllReady(gameEngine, session.getRoomId());
+        broadcastSnapshot(gameEngine, session.getRoomId());
+    }
+
+    private void handleStandUp(GameEngine gameEngine, PlayerSession session) {
+        requireSeated(session);
+        int seatIndex = session.getSeatIndex();
+        gameEngine.playerStandUp(seatIndex);
+        System.out.println("座位 " + seatIndex + " 起身旁观");
+        tryStartNextHandIfEligible(gameEngine, session.getRoomId());
         broadcastSnapshot(gameEngine, session.getRoomId());
     }
 
     private void handleSitDown(ChannelHandlerContext ctx, GameEngine gameEngine, PlayerSession session, int seatIndex) {
         requireJoined(session);
-        if (session.getSeatIndex() >= 0) {
-            throw new IllegalStateException("你已经坐下，座位号: " + session.getSeatIndex());
-        }
         Table table = gameEngine.getTable();
+
+        // 起身后再次「坐下」：恢复参与牌局，仍占原座位
+        if (session.getSeatIndex() >= 0) {
+            if (seatIndex >= 0 && seatIndex != session.getSeatIndex()) {
+                throw new IllegalStateException("起身后请在原座位坐下，座位号: " + session.getSeatIndex());
+            }
+            gameEngine.playerSitBack(session.getSeatIndex());
+            clearAllReady(table);
+            System.out.println("玩家 " + session.getUsername() + " 从起身恢复坐下，座位 " + session.getSeatIndex());
+            tryStartNextHandIfEligible(gameEngine, table.getRoomId());
+            broadcastSnapshot(gameEngine, table.getRoomId());
+            return;
+        }
+
         if (seatIndex < 0 || seatIndex >= table.getSeats().length) {
             throw new IllegalArgumentException("非法座位号: " + seatIndex);
         }
@@ -213,12 +300,12 @@ public class RoomRouter {
         SessionManager.getINSTANCE().sitDown(ctx.channel(), seatIndex);
         clearAllReady(table);
         System.out.println("玩家 " + session.getUsername() + " 坐到座位 " + seatIndex);
-        publishEvent("player_sat", Map.of(
-                "roomId", table.getRoomId(),
-                "userId", session.getUserId(),
-                "username", session.getUsername(),
-                "seatIndex", String.valueOf(seatIndex)
-        ));
+        // publishEvent("player_sat", Map.of(
+        //         "roomId", table.getRoomId(),
+        //         "userId", session.getUserId(),
+        //         "username", session.getUsername(),
+        //         "seatIndex", String.valueOf(seatIndex)
+        // ));
         markEmptyState(table.getRoomId(), gameEngine);
         RedisRoomRegistry.getINSTANCE().updateSeatedCount(
                 table.getRoomId(),
@@ -261,22 +348,22 @@ public class RoomRouter {
         RoomInfo roomInfo = buildRoomInfo(roomId, gameEngine, gameType);
         RedisRoomRegistry.getINSTANCE().registerRoom(toLobbyRoomMeta(roomInfo));
         SnapshotBroadcaster.getINSTANCE().sendRoomCreated(ctx.channel(), roomInfo);
-        publishEvent("room_created", Map.of(
-                "roomId", roomId,
-                "userId", session.getUserId(),
-                "username", session.getUsername(),
-                "gameType", gameType.name()
-        ));
+        // publishEvent("room_created", Map.of(
+        //         "roomId", roomId,
+        //         "userId", session.getUserId(),
+        //         "username", session.getUsername(),
+        //         "gameType", gameType.name()
+        // ));
         System.out.println("玩家 " + session.getUsername() + " 创建并加入房间 " + roomId);
     }
 
     private void handleJoinRoom(ChannelHandlerContext ctx, GameEngine gameEngine, PlayerSession session, String roomId) {
         SessionManager.getINSTANCE().joinRoom(ctx.channel(), roomId);
-        publishEvent("room_joined", Map.of(
-                "roomId", roomId,
-                "userId", session.getUserId(),
-                "username", session.getUsername()
-        ));
+        // publishEvent("room_joined", Map.of(
+        //         "roomId", roomId,
+        //         "userId", session.getUserId(),
+        //         "username", session.getUsername()
+        // ));
         System.out.println("玩家 " + session.getUsername() + "加入房间" + session.getRoomId());
         broadcastSnapshot(gameEngine, roomId);
     }
@@ -311,20 +398,20 @@ public class RoomRouter {
         System.out.println("加入失败：房间元数据存在但本 Pod 无内存房间 " + roomId);
     }
 
-    private void publishPlayerAction(PlayerSession session, String action, int seatIndex, int amount) {
-        publishEvent("player_action", Map.of(
-                "roomId", session.getRoomId() == null ? "" : session.getRoomId(),
-                "userId", session.getUserId(),
-                "username", session.getUsername(),
-                "action", action,
-                "seatIndex", String.valueOf(seatIndex),
-                "amount", String.valueOf(amount)
-        ));
-    }
+    // private void publishPlayerAction(PlayerSession session, String action, int seatIndex, int amount) {
+    //     publishEvent("player_action", Map.of(
+    //             "roomId", session.getRoomId() == null ? "" : session.getRoomId(),
+    //             "userId", session.getUserId(),
+    //             "username", session.getUsername(),
+    //             "action", action,
+    //             "seatIndex", String.valueOf(seatIndex),
+    //             "amount", String.valueOf(amount)
+    //     ));
+    // }
 
-    private void publishEvent(String eventType, Map<String, String> fields) {
-        EventPublisher.getINSTANCE().publish(eventType, fields);
-    }
+    // private void publishEvent(String eventType, Map<String, String> fields) {
+    //     EventPublisher.getINSTANCE().publish(eventType, fields);
+    // }
 
     /**
      * 断线重连：从 Redis 恢复玩家身份与房间/座位，重新订阅房间快照。
@@ -355,6 +442,7 @@ public class RoomRouter {
             roomId = null;
         }
         int seatIndex = parseSeatIndex(sessionData.get("seatIndex"));
+        boolean authenticated = "1".equals(sessionData.get("authenticated"));
 
         SessionManager.getINSTANCE().restoreSession(
                 ctx.channel(),
@@ -362,9 +450,21 @@ public class RoomRouter {
                 userId,
                 username,
                 roomId,
-                seatIndex
+                seatIndex,
+                authenticated
         );
-        SnapshotBroadcaster.getINSTANCE().sendSessionConnected(ctx.channel(), sessionToken);
+        SnapshotBroadcaster.getINSTANCE().sendSessionConnected(
+                ctx.channel(),
+                sessionToken,
+                userId,
+                username,
+                authenticated
+        );
+
+        if (!authenticated) {
+            System.out.println("重连：会话未登录，等待 LOGIN");
+            return;
+        }
 
         if (roomId == null) {
             handleListRooms(ctx);
@@ -525,14 +625,17 @@ public class RoomRouter {
         if (!gameEngine.startNextHand()) {
             return false;
         }
-        publishEvent("hand_started", Map.of("roomId", roomId));
+        // publishEvent("hand_started", Map.of("roomId", roomId));
         return true;
     }
 
     /** 筹码为 0 且仍待询问补码的玩家会阻塞下一局开局 */
     private boolean hasPlayersAwaitingRebuyPrompt(Table table) {
         for (Player player : table.getSeats()) {
-            if (player != null && player.getChips() == 0 && player.isWillRebuy()) {
+            if (player != null
+                    && !player.isStoodUp()
+                    && player.getChips() == 0
+                    && player.isWillRebuy()) {
                 return true;
             }
         }
@@ -542,7 +645,7 @@ public class RoomRouter {
     private int countPlayersWithChips(Table table) {
         int count = 0;
         for (Player player : table.getSeats()) {
-            if (player != null && player.getChips() > 0) {
+            if (player != null && player.getChips() > 0 && !player.isStoodUp()) {
                 count++;
             }
         }
@@ -583,7 +686,7 @@ public class RoomRouter {
     private boolean areAllPlayersWithChipsReady(Table table) {
         int playersWithChips = 0;
         for (Player player : table.getSeats()) {
-            if (player == null || player.getChips() <= 0) {
+            if (player == null || player.getChips() <= 0 || player.isStoodUp()) {
                 continue;
             }
             playersWithChips++;
@@ -602,7 +705,7 @@ public class RoomRouter {
         clearAllReady(table);
         gameEngine.startNewHand();
         System.out.println("房间 " + roomId + " 全员准备，开始游戏");
-        publishEvent("hand_started", Map.of("roomId", roomId));
+        // publishEvent("hand_started", Map.of("roomId", roomId));
     }
 
     private RoomInfo buildRoomInfo(String roomId, GameEngine gameEngine, GameType gameType) {

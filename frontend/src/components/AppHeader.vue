@@ -1,6 +1,8 @@
 <script setup lang="ts">
 defineProps<{
   connected: boolean
+  authenticated?: boolean
+  username?: string
   sessionToken?: string
   showBack?: boolean
 }>()
@@ -26,7 +28,10 @@ defineEmits<{
       <div class="connection">
         <span class="dot" :class="connected ? 'online' : 'offline'" />
         <span>{{ connected ? '已连接' : '未连接' }}</span>
-        <span v-if="sessionToken" class="token" :title="sessionToken">
+        <span v-if="authenticated && username" class="user" :title="username">
+          {{ username }}
+        </span>
+        <span v-else-if="sessionToken" class="token" :title="sessionToken">
           Session {{ sessionToken.slice(0, 8) }}…
         </span>
       </div>
@@ -125,6 +130,18 @@ defineEmits<{
 
 .dot.offline {
   background: #ef4444;
+}
+
+.user {
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(34, 197, 94, 0.15);
+  color: #86efac;
+  font-size: 12px;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .token {

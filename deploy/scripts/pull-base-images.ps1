@@ -20,10 +20,10 @@ foreach ($image in $LibraryImages) {
     Write-Host "Tagged as $image"
 }
 
-$kafkaMirror = "docker.m.daocloud.io/apache/kafka:3.7.0"
-Write-Host "Pull $kafkaMirror ..."
-docker pull $kafkaMirror
-docker tag $kafkaMirror apache/kafka:3.7.0
-Write-Host "Tagged as apache/kafka:3.7.0"
+# $kafkaMirror = "docker.m.daocloud.io/apache/kafka:3.7.0"
+# Write-Host "Pull $kafkaMirror ..."
+# docker pull $kafkaMirror
+# docker tag $kafkaMirror apache/kafka:3.7.0
+# Write-Host "Tagged as apache/kafka:3.7.0"
 
 Write-Host "Done. You can now build without DOCKER_REGISTRY_PREFIX if using standard image names."

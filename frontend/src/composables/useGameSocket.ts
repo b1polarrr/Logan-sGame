@@ -24,6 +24,8 @@ export interface SendActionOptions {
   smallBlind?: number
   bigBlind?: number
   sessionToken?: string
+  username?: string
+  password?: string
 }
 
 function buildWebSocketUrl(): string {
@@ -80,7 +82,12 @@ export function useGameSocket() {
   const inTable = ref(false)
   const mySeatIndex = ref(-1)
   const connected = ref(false)
+  const authenticated = ref(false)
+  const username = ref('')
+  const userId = ref('')
   const sessionToken = ref('')
+  const loginBusy = ref(false)
+  const loginError = ref('')
   const logs = ref<string[]>([])
   const showdownResult = ref<ShowdownResult | null>(null)
 
@@ -133,8 +140,6 @@ export function useGameSocket() {
       const storedToken = localStorage.getItem(SESSION_STORAGE_KEY)
       if (storedToken) {
         reconnectWithToken(storedToken)
-      } else if (!inTable.value) {
-        refreshRoomList()
       }
     }
 
@@ -144,6 +149,7 @@ export function useGameSocket() {
 
     websocket.onclose = () => {
       connected.value = false
+      authenticated.value = false
       appendLog('[关闭] 连接已断开')
     }
 
@@ -171,7 +177,12 @@ export function useGameSocket() {
         tableSnapshot?: Record<string, unknown>
         roomList?: { rooms?: Record<string, unknown>[] }
         roomCreated?: Record<string, unknown>
-        sessionConnected?: { sessionToken?: string }
+        sessionConnected?: {
+          sessionToken?: string
+          userId?: string
+          username?: string
+          authenticated?: boolean
+        }
         error?: { code?: string; message?: string }
         showdown?: Record<string, unknown>
       }
@@ -179,11 +190,21 @@ export function useGameSocket() {
       if (messageObject.sessionConnected) {
         const newToken = String(messageObject.sessionConnected.sessionToken ?? '')
         const storedToken = localStorage.getItem(SESSION_STORAGE_KEY)
-        if (!pendingReconnect || newToken === storedToken) {
+        const isAuthenticated = Boolean(messageObject.sessionConnected.authenticated)
+        if (!pendingReconnect || newToken === storedToken || isAuthenticated) {
           sessionToken.value = newToken
           persistSessionState(newToken)
         }
-        appendLog('[会话] token ' + (newToken || '(空)'))
+        userId.value = String(messageObject.sessionConnected.userId ?? '')
+        username.value = String(messageObject.sessionConnected.username ?? '')
+        authenticated.value = isAuthenticated
+        loginBusy.value = false
+        if (isAuthenticated) {
+          loginError.value = ''
+          appendLog('[登录] ' + username.value)
+        } else {
+          appendLog('[会话] 访客 token ' + (newToken.slice(0, 8) || '(空)') + '…')
+        }
         return
       }
       if (messageObject.tableSnapshot) {
@@ -194,7 +215,19 @@ export function useGameSocket() {
         pendingReconnect = false
         updateMySeatFromSnapshot(snapshot)
         persistSessionState(sessionToken.value, snapshot.roomId, mySeatIndex.value)
-        appendLog('[快照] 房间 ' + snapshot.roomId + ' 底池 ' + snapshot.pot)
+        const playerStatusLog = snapshot.players
+          .map(
+            (player) =>
+              'seat' + player.seatIndex + ':' + player.username + '=' + player.handStatus,
+          )
+          .join(' ')
+        appendLog(
+          '[快照] 房间 ' +
+            snapshot.roomId +
+            ' 底池 ' +
+            snapshot.pot +
+            (playerStatusLog ? ' | ' + playerStatusLog : ''),
+        )
         return
       }
       if (messageObject.roomList) {
@@ -217,11 +250,20 @@ export function useGameSocket() {
         const code = String(messageObject.error.code ?? 'ERROR')
         const message = String(messageObject.error.message ?? '')
         appendLog('[错误] ' + code + ' ' + message)
+        if (code === 'LOGIN_FAILED' || code === 'AUTH_REQUIRED') {
+          loginBusy.value = false
+          loginError.value = message || '登录失败'
+          if (code === 'LOGIN_FAILED') {
+            authenticated.value = false
+          }
+        }
         if (code === 'ROOM_ON_OTHER_POD' || code === 'ROOM_NOT_FOUND') {
           leaveTable()
           localStorage.removeItem(ROOM_STORAGE_KEY)
           localStorage.removeItem(SEAT_STORAGE_KEY)
-          refreshRoomList()
+          if (authenticated.value) {
+            refreshRoomList()
+          }
           appendLog('[提示] 请刷新房间列表，加入本页可见的房间或新建房间')
         }
         return
@@ -265,6 +307,11 @@ export function useGameSocket() {
     leaveTable()
     clearStoredSessionState()
     sessionToken.value = ''
+    authenticated.value = false
+    username.value = ''
+    userId.value = ''
+    loginBusy.value = false
+    loginError.value = ''
     showdownResult.value = null
     if (showdownClearTimer) {
       clearTimeout(showdownClearTimer)
@@ -351,6 +398,11 @@ export function useGameSocket() {
       payload.sessionToken = options.sessionToken
     }
 
+    if (actionName === 'LOGIN') {
+      payload.username = options.username ?? ''
+      payload.password = options.password ?? ''
+    }
+
     const verifyError = types.PlayerActionRequest.verify(payload)
     if (verifyError) {
       appendLog('[编码校验失败] ' + verifyError)
@@ -366,18 +418,37 @@ export function useGameSocket() {
     websocket.send(payloadBuffer)
 
     appendLog(
-      '[已发送] ' +
-        actionName +
-        ' room=' +
-        roomId +
-        ' seat=' +
-        payload.seatIndex +
-        ' amount=' +
-        amount,
+      actionName === 'LOGIN'
+        ? '[已发送] LOGIN user=' + (options.username ?? '')
+        : '[已发送] ' +
+            actionName +
+            ' room=' +
+            roomId +
+            ' seat=' +
+            payload.seatIndex +
+            ' amount=' +
+            amount,
     )
   }
 
+  async function login(loginUsername: string, loginPassword: string) {
+    if (!websocket || websocket.readyState !== WebSocket.OPEN) {
+      appendLog('[错误] 请先连接')
+      loginError.value = '请先连接服务器'
+      return
+    }
+    loginBusy.value = true
+    loginError.value = ''
+    await sendAction('LOGIN', {
+      username: loginUsername,
+      password: loginPassword,
+    })
+  }
+
   async function refreshRoomList() {
+    if (!authenticated.value) {
+      return
+    }
     await sendAction('LIST_ROOMS')
   }
 
@@ -389,17 +460,21 @@ export function useGameSocket() {
     await sendAction('CREATE_ROOM', options)
   }
 
-  async function joinRoom(roomId: string, seatIndex: number) {
+  async function joinRoom(roomId: string) {
     currentRoomId.value = roomId
     mySeatIndex.value = -1
     persistSessionState(sessionToken.value, roomId, -1)
-    await sendAction('JOIN_ROOM', { roomId, seatIndex })
+    await sendAction('JOIN_ROOM', { roomId })
   }
 
   async function sitDown(seatIndex: number) {
     mySeatIndex.value = seatIndex
     persistSessionState(sessionToken.value, currentRoomId.value, seatIndex)
     await sendAction('SIT_DOWN', { seatIndex })
+  }
+
+  async function standUp() {
+    await sendAction('STAND_UP')
   }
 
   async function fold() {
@@ -444,7 +519,12 @@ export function useGameSocket() {
 
   return {
     connected,
+    authenticated,
+    username,
+    userId,
     sessionToken,
+    loginBusy,
+    loginError,
     logs,
     showdownResult,
     rooms,
@@ -454,11 +534,13 @@ export function useGameSocket() {
     mySeatIndex,
     connect,
     disconnect,
+    login,
     sendAction,
     refreshRoomList,
     createRoom,
     joinRoom,
     sitDown,
+    standUp,
     fold,
     check,
     call,

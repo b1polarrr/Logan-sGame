@@ -1,15 +1,21 @@
 package com.mercury.poker.network;
 
 public class PlayerSession {
-    private final String userId;
-    private final String username;
+    private String userId;
+    private String username;
     private String roomId; //加入房间后赋值
     private int seatIndex = -1; //坐下后赋值
     private String sessionToken;
+    private boolean authenticated;
 
-    public PlayerSession(String userId, String username){
+    public PlayerSession(String userId, String username) {
+        this(userId, username, false);
+    }
+
+    public PlayerSession(String userId, String username, boolean authenticated) {
         this.userId = userId;
         this.username = username;
+        this.authenticated = authenticated;
     }
 
     public String getUserId() {
@@ -18,6 +24,17 @@ public class PlayerSession {
 
     public String getUsername() {
         return username;
+    }
+
+    public boolean isAuthenticated() {
+        return authenticated;
+    }
+
+    /** 登录成功后绑定真实账号身份 */
+    public void bindIdentity(String userId, String username) {
+        this.userId = userId;
+        this.username = username;
+        this.authenticated = true;
     }
 
     public int getSeatIndex() {

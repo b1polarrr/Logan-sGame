@@ -6,7 +6,8 @@ namespace: poker-aa
 resources:
   - namespace.yaml
   - redis.yaml
-  - kafka.yaml
+  - mysql.yaml
+  # - kafka.yaml
   - game-server.yaml
   - nginx-configmap.yaml
   - nginx.yaml

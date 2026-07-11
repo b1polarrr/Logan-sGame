@@ -23,7 +23,10 @@ public class PokerGameHandler extends SimpleChannelInboundHandler<BinaryWebSocke
         PlayerSession playerSession = SessionManager.getINSTANCE().onConnect(ctx.channel());
         SnapshotBroadcaster.getINSTANCE().sendSessionConnected(
                 ctx.channel(),
-                playerSession.getSessionToken()
+                playerSession.getSessionToken(),
+                playerSession.getUserId(),
+                playerSession.getUsername(),
+                playerSession.isAuthenticated()
         );
         System.out.println("【网络通知】玩家连接成功，sessionToken=" + playerSession.getSessionToken());
     }

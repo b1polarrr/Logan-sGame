@@ -4,6 +4,7 @@ import PlayingCard from './PlayingCard.vue'
 import { formatChips } from '../utils/chips'
 import { isHiddenCard } from '../utils/cards'
 import type { PlayerState } from '../types/table'
+import { isAllIn, isFolded, isStoodUp } from '../types/table'
 
 const props = defineProps<{
   player: PlayerState | null
@@ -53,12 +54,13 @@ const chipLabel = computed(() => {
       empty: !player,
       mine: isMe,
       active: isActive,
-      folded: player?.isFolded,
+      folded: player != null && isFolded(player),
+      stood: player != null && isStoodUp(player),
       offline: player && !player.isOnline,
     }"
   >
     <div
-      v-if="showCards && player && (!player.isFolded || isMe)"
+      v-if="showCards && player && (!isFolded(player) || isMe)"
       class="hole-cards"
     >
       <PlayingCard
@@ -76,7 +78,7 @@ const chipLabel = computed(() => {
         class="avatar-wrap"
         :class="{
           glowing: isActive,
-          folded: player.isFolded,
+          folded: isFolded(player),
           winner: isWinner,
         }"
       >
@@ -96,9 +98,10 @@ const chipLabel = computed(() => {
         <div class="name-row">
           <span class="name">{{ player.username }}</span>
           <span v-if="showReadyStatus && player.isReady" class="badge ready">已准备</span>
-          <span v-else-if="showReadyStatus && player.chips > 0" class="badge not-ready">未准备</span>
-          <span v-else-if="player.isFolded" class="badge folded">弃牌</span>
-          <span v-else-if="player.isAllIn && isStillInHand" class="badge all-in">全下</span>
+          <span v-else-if="showReadyStatus && player.chips > 0 && !isStoodUp(player)" class="badge not-ready">未准备</span>
+          <span v-else-if="isStoodUp(player)" class="badge stood">起身</span>
+          <span v-else-if="isFolded(player)" class="badge folded">弃牌</span>
+          <span v-else-if="isAllIn(player) && isStillInHand" class="badge all-in">全下</span>
           <span v-else-if="player.chips === 0 && player.willRebuy" class="badge rebuying">补码中</span>
           <span v-else-if="player.chips === 0 && !player.willRebuy" class="badge rebuy-next">下把玩</span>
           <span v-else-if="!player.isOnline" class="badge offline">离线</span>
@@ -130,6 +133,10 @@ const chipLabel = computed(() => {
 
 .player-pod.folded .info-plate {
   opacity: 0.75;
+}
+
+.player-pod.stood .info-plate {
+  opacity: 0.8;
 }
 
 .dealer-button,
@@ -433,6 +440,11 @@ const chipLabel = computed(() => {
 .badge.folded {
   background: rgba(231, 76, 60, 0.25);
   color: #e74c3c;
+}
+
+.badge.stood {
+  background: rgba(155, 89, 182, 0.22);
+  color: #bb8fce;
 }
 
 .badge.all-in {

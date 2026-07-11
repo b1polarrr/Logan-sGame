@@ -1,6 +1,6 @@
 package com.mercury.poker.network;
 
-import com.mercury.poker.events.EventPublisher;
+// import com.mercury.poker.events.EventPublisher;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelInitializer;
@@ -92,7 +92,7 @@ public class PokerNettyServer {
         if (workerGroup != null) {
             workerGroup.shutdownGracefully();
         }
-        EventPublisher.getINSTANCE().shutdown();
+        // EventPublisher.getINSTANCE().shutdown();
         System.out.println("Netty游戏网关已关闭");
     }
 

@@ -8,6 +8,7 @@ import { formatChips } from '../utils/chips'
 import { isHiddenCard } from '../utils/cards'
 import { resolveBlindSeatIndices } from '../utils/blinds'
 import type { PlayerState, ShowdownResult, TableSnapshot } from '../types/table'
+import { isAllIn, isFolded, isParticipating, isStoodUp } from '../types/table'
 
 const props = defineProps<{
   connected: boolean
@@ -21,6 +22,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   sitDown: [seatIndex: number]
+  standUp: []
   fold: []
   check: []
   call: []
@@ -44,7 +46,7 @@ const betweenHands = computed(
 )
 
 const playersWithChips = computed(() =>
-  props.snapshot.players.filter((player) => player.chips > 0),
+  props.snapshot.players.filter((player) => player.chips > 0 && !isStoodUp(player)),
 )
 
 const needsReadyBeforeFirstHand = computed(
@@ -53,7 +55,9 @@ const needsReadyBeforeFirstHand = computed(
     !handEverStarted.value &&
     props.snapshot.currentTurnIndex < 0 &&
     !props.showdownResult &&
-    playersWithChips.value.length >= 2,
+    playersWithChips.value.length >= 2 &&
+    myPlayer.value != null &&
+    !isStoodUp(myPlayer.value),
 )
 
 const canClickReady = computed(
@@ -61,7 +65,8 @@ const canClickReady = computed(
     needsReadyBeforeFirstHand.value &&
     myPlayer.value != null &&
     myPlayer.value.chips > 0 &&
-    !myPlayer.value.isReady,
+    !myPlayer.value.isReady &&
+    !isStoodUp(myPlayer.value),
 )
 
 const waitingOthersReady = computed(
@@ -96,20 +101,20 @@ const buyInAmount = computed(() => props.defaultBuyIn ?? 1000)
 
 /** 玩家是否仍在本局内（含 all-in 跑牌、等待摊牌） */
 function isPlayerStillInHand(player: PlayerState): boolean {
-  if (player.isFolded || !player.isInHand) {
+  if (isFolded(player) || !isParticipating(player)) {
     return false
   }
   if (props.showdownResult) {
     return false
   }
-  if (player.chips > 0 && !player.isAllIn) {
+  if (player.chips > 0 && !isAllIn(player)) {
     return false
   }
-  // 局间底池已清空：上一局已结束，isAllIn 尚未 reset，不应仍显示全下
+  // 局间底池已清空：上一局已结束，ALL_IN 尚未 reset，不应仍显示全下
   if (props.snapshot.currentTurnIndex < 0 && props.snapshot.pot === 0) {
     return false
   }
-  return player.isAllIn || player.chips === 0
+  return isAllIn(player) || player.chips === 0
 }
 
 /** 我是否仍在本局内（含 all-in 跑牌、等待摊牌） */
@@ -122,10 +127,13 @@ const showGameplayActions = computed(() => {
   if (!isSeated.value || !myPlayer.value) {
     return false
   }
+  if (isStoodUp(myPlayer.value)) {
+    return false
+  }
   if (canClickReady.value || needsReadyBeforeFirstHand.value) {
     return false
   }
-  if (props.snapshot.currentTurnIndex >= 0 && !myPlayer.value.isInHand) {
+  if (props.snapshot.currentTurnIndex >= 0 && !isParticipating(myPlayer.value)) {
     return false
   }
   if (
@@ -141,10 +149,29 @@ const showGameplayActions = computed(() => {
   return true
 })
 
+const canStandUp = computed(
+  () =>
+    isSeated.value &&
+    myPlayer.value != null &&
+    !isStoodUp(myPlayer.value) &&
+    props.snapshot.currentTurnIndex < 0 &&
+    !props.showdownResult,
+)
+
+const canSitBack = computed(
+  () =>
+    isSeated.value &&
+    myPlayer.value != null &&
+    isStoodUp(myPlayer.value) &&
+    props.snapshot.currentTurnIndex < 0 &&
+    !props.showdownResult,
+)
+
 const showRebuyModal = computed(
   () =>
     isSeated.value &&
     myPlayer.value != null &&
+    !isStoodUp(myPlayer.value) &&
     myPlayer.value.chips === 0 &&
     myPlayer.value.willRebuy &&
     !amStillInHand.value &&
@@ -175,14 +202,14 @@ function isRebuyDeferredForSeat(seatIndex: number): boolean {
   if (!player || player.chips !== 0 || player.willRebuy) {
     return false
   }
-  if (player.isFolded && props.snapshot.currentTurnIndex >= 0) {
+  if (isFolded(player) && props.snapshot.currentTurnIndex >= 0) {
     return false
   }
   if (props.showdownResult) {
     return true
   }
   if (props.snapshot.currentTurnIndex >= 0) {
-    return !player.isAllIn
+    return !isAllIn(player)
   }
   return true
 }
@@ -218,7 +245,8 @@ function profitClass(profit: number): string {
 const isMyTurn = computed(
   () =>
     isSeated.value &&
-    myPlayer.value?.isInHand &&
+    myPlayer.value != null &&
+    isParticipating(myPlayer.value) &&
     props.snapshot.currentTurnIndex >= 0 &&
     props.snapshot.currentTurnIndex === props.mySeatIndex,
 )
@@ -229,7 +257,7 @@ const canTakeAction = computed(
     isMyTurn.value &&
     myPlayer.value != null &&
     myPlayer.value.chips > 0 &&
-    !myPlayer.value.isAllIn,
+    !isAllIn(myPlayer.value),
 )
 
 const callAmount = computed(() => {
@@ -248,7 +276,7 @@ const mustAllIn = computed(() => {
 const canAllIn = computed(
   () =>
     myPlayer.value != null &&
-    myPlayer.value.isInHand &&
+    isParticipating(myPlayer.value) &&
     myPlayer.value.chips > 0 &&
     canTakeAction.value,
 )
@@ -433,7 +461,7 @@ function shouldShowCards(player: TableSnapshot['players'][0] | null, seatIndex: 
   if (!player) return false
   const isMe = seatIndex === props.mySeatIndex
   if (isMe) return true
-  if (player.isFolded) return false
+  if (isFolded(player)) return false
 
   if (props.showdownResult) {
     if (props.showdownResult.reason === 'fold') {
@@ -623,6 +651,17 @@ function shouldShowCards(player: TableSnapshot['players'][0] | null, seatIndex: 
         点击空位「坐下」加入牌局
       </div>
 
+      <div v-else-if="canSitBack" class="ready-row">
+        <button
+          type="button"
+          class="action-btn primary ready-btn"
+          :disabled="!connected"
+          @click="emit('sitDown', mySeatIndex)"
+        >
+          坐下
+        </button>
+      </div>
+
       <div v-else-if="canClickReady" class="ready-row">
         <button
           type="button"
@@ -632,10 +671,38 @@ function shouldShowCards(player: TableSnapshot['players'][0] | null, seatIndex: 
         >
           准备
         </button>
+        <button
+          type="button"
+          class="action-btn"
+          :disabled="!connected || !canStandUp"
+          @click="emit('standUp')"
+        >
+          起身
+        </button>
       </div>
 
       <div v-else-if="needsReadyBeforeFirstHand" class="ready-waiting">
         <span class="ready-waiting-text">等待全员准备后开局</span>
+        <button
+          v-if="canStandUp"
+          type="button"
+          class="action-btn"
+          :disabled="!connected"
+          @click="emit('standUp')"
+        >
+          起身
+        </button>
+      </div>
+
+      <div v-else-if="canStandUp && !showGameplayActions" class="ready-row">
+        <button
+          type="button"
+          class="action-btn"
+          :disabled="!connected"
+          @click="emit('standUp')"
+        >
+          起身
+        </button>
       </div>
 
       <div v-else-if="showGameplayActions" class="action-row">
@@ -686,6 +753,15 @@ function shouldShowCards(player: TableSnapshot['players'][0] | null, seatIndex: 
           @click="submitAllIn"
         >
           All-in
+        </button>
+        <button
+          v-if="canStandUp"
+          type="button"
+          class="action-btn"
+          :disabled="!connected"
+          @click="emit('standUp')"
+        >
+          起身
         </button>
       </div>
 
@@ -738,7 +814,10 @@ function shouldShowCards(player: TableSnapshot['players'][0] | null, seatIndex: 
         </div>
       </div>
 
-      <p v-if="isSeated && amStillInHand && !showdownResult" class="turn-tip">已全下，等待摊牌…</p>
+      <p v-if="isSeated && myPlayer && isStoodUp(myPlayer)" class="turn-tip">
+        已起身旁观，仍占座位；点击「坐下」后可再入局
+      </p>
+      <p v-else-if="isSeated && amStillInHand && !showdownResult" class="turn-tip">已全下，等待摊牌…</p>
       <p v-else-if="isSeated && isMyTurn && canTakeAction" class="turn-tip active">轮到你了</p>
       <p v-else-if="isSeated && showdownResult" class="turn-tip">摊牌结算中…</p>
       <p v-else-if="isSeated && canClickReady" class="turn-tip">点击「准备」开始本局</p>
@@ -1098,6 +1177,8 @@ function shouldShowCards(player: TableSnapshot['players'][0] | null, seatIndex: 
 .ready-row {
   display: flex;
   justify-content: center;
+  align-items: center;
+  gap: 10px;
   padding: 8px 0;
 }
 
@@ -1108,6 +1189,10 @@ function shouldShowCards(player: TableSnapshot['players'][0] | null, seatIndex: 
 }
 
 .ready-waiting {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
   text-align: center;
   padding: 12px;
 }

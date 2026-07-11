@@ -25,14 +25,14 @@ public class SessionManager {
         return INSTANCE;
     }
 
-    /** 连接建立：创建玩家身份，并存入 sessions */
+    /** 连接建立：创建临时访客身份，并存入 sessions */
     public PlayerSession onConnect(Channel channel) {
         String shortId = channel.id().asShortText();
         String userId = shortId;
         String username = "玩家_" + shortId.substring(0, Math.min(4, shortId.length()));
 
-        PlayerSession session = new PlayerSession(userId, username);
-        String sessionToken = RedisSessionStore.getINSTANCE().createSession(userId, username);
+        PlayerSession session = new PlayerSession(userId, username, false);
+        String sessionToken = RedisSessionStore.getINSTANCE().createSession(userId, username, false);
         session.setSessionToken(sessionToken);
         sessions.put(channel.id(), session);
         return session;
@@ -100,9 +100,10 @@ public class SessionManager {
             String userId,
             String username,
             String roomId,
-            int seatIndex
+            int seatIndex,
+            boolean authenticated
     ) {
-        PlayerSession session = new PlayerSession(userId, username);
+        PlayerSession session = new PlayerSession(userId, username, authenticated);
         session.setSessionToken(sessionToken);
         session.setRoomId(roomId);
         session.setSeatIndex(seatIndex);
@@ -110,6 +111,16 @@ public class SessionManager {
         if (roomId != null && !roomId.isBlank()) {
             roomChannels.computeIfAbsent(roomId, k -> ConcurrentHashMap.newKeySet()).add(channel);
         }
+        persistSession(channel);
+    }
+
+    /** 登录成功：绑定账号并写回 Redis */
+    public void bindLogin(Channel channel, String userId, String username) {
+        PlayerSession session = sessions.get(channel.id());
+        if (session == null) {
+            throw new IllegalStateException("会话不存在");
+        }
+        session.bindIdentity(userId, username);
         persistSession(channel);
     }
 
@@ -131,9 +142,9 @@ public class SessionManager {
         persistSession(channel);
     }
 
-    private void persistSession(Channel channel){
+    private void persistSession(Channel channel) {
         PlayerSession session = sessions.get(channel.id());
-        if (session == null || session.getSessionToken() == null){
+        if (session == null || session.getSessionToken() == null) {
             return;
         }
         RedisSessionStore.getINSTANCE().save(
@@ -141,7 +152,8 @@ public class SessionManager {
                 session.getUserId(),
                 session.getUsername(),
                 session.getRoomId(),
-                session.getSeatIndex()
+                session.getSeatIndex(),
+                session.isAuthenticated()
         );
     }
 }

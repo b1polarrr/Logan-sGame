@@ -28,6 +28,8 @@ enum ActionType {
   REBUY = 10;         // 补充筹码（amount 为补充额，0 则用默认买入）
   READY = 11;         // 准备（所有在座且有筹码的玩家均准备后开局）
   DECLINE_REBUY = 12; // 稍后再说（放弃本轮补码询问）
+  STAND_UP = 13;      // 起身：占座旁观，不进入下一局，直到再次坐下
+  LOGIN = 14;         // 账号登录（用户名不存在则自动建号）
 }
 
 // 2. 客户端操作请求包裹
@@ -41,6 +43,8 @@ message PlayerActionRequest {
   int32 small_blind = 7;  // CREATE_ROOM 时使用，默认 10
   int32 big_blind = 8;    // CREATE_ROOM 时使用，默认 20
   string session_token = 9; // RECONNECT 时使用
+  string username = 10;     // LOGIN 时使用
+  string password = 11;     // LOGIN 时使用
 }
 
 // 5. 大厅房间摘要
@@ -72,6 +76,9 @@ message ServerMessage {
 
 message SessionConnectedResponse {
   string session_token = 1;
+  string user_id = 2;
+  string username = 3;
+  bool authenticated = 4; // true = 已登录账号；false = 临时访客
 }
 
 message ErrorResponse {
@@ -95,6 +102,16 @@ message ShowdownResult {
   repeated ShowdownPlayerResult players = 4;
 }
 
+// 本局参与状态（互斥）
+enum HandStatus {
+  HAND_STATUS_UNKNOWN = 0;
+  SITTING_OUT = 1; // 未参与当前局（如无筹码旁观）
+  IN_HAND = 2;     // 在局内且可行动
+  FOLDED = 3;      // 已弃牌
+  ALL_IN = 4;      // 已全下
+  STOOD_UP = 5;    // 起身占座：不进入牌局，直到再次坐下
+}
+
 // 3. 牌牌/玩家基础状态（用于同步给前端）
 message PlayerState {
   string user_id = 1;
@@ -102,14 +119,13 @@ message PlayerState {
   int32 seat_index = 3;
   int32 chips = 4;
   int32 current_bet = 5;
-  bool is_folded = 6;
-  bool is_all_in = 7;
+  HandStatus hand_status = 6;     // 替代原 is_folded / is_all_in / is_active
+  reserved 7, 13;
   bool is_online = 8;
   repeated string hole_cards = 9; // 底牌（注意：为了防作弊，非本人手牌后端发空字符串）
   int32 session_profit = 10;      // 本场盈亏 = 当前筹码 - 累计买入
   bool is_ready = 11;             // 是否已准备（局间等待时使用）
   bool will_rebuy = 12;           // 是否补码（询问意愿；询问后选稍后再说为 false，补码后为 true）
-  bool is_active = 13;            // 是否参与当前局
 }
 
 // 4. 服务器广播给所有人的完整牌桌快照（全场同步的核心）

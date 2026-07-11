@@ -34,6 +34,12 @@ public interface GameEngine {
     /** 稍后再说（放弃本轮补码询问） */
     void playerDeclineRebuy(int seatIndex);
 
+    /** 起身：占座旁观，不进入后续牌局 */
+    void playerStandUp(int seatIndex);
+
+    /** 起身后再次坐下，恢复参与牌局 */
+    void playerSitBack(int seatIndex);
+
     /** 是否可开新局（至少两人有筹码且当前无进行中的手牌） */
     boolean canStartNewHand();
 

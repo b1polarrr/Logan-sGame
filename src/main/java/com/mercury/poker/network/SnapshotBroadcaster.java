@@ -59,13 +59,11 @@ public class SnapshotBroadcaster {
                     .setSeatIndex(seatIndex)
                     .setChips(player.getChips())
                     .setCurrentBet(player.getCurrentBet())
-                    .setIsFolded(player.isFolded())
-                    .setIsAllIn(player.isAllIn())
+                    .setHandStatus(toHandStatus(player))
                     .setIsOnline(player.isOnline())
                     .setSessionProfit(player.getSessionProfit())
                     .setIsReady(player.isReady())
-                    .setWillRebuy(player.isWillRebuy())
-                    .setIsActive(player.isActive());
+                    .setWillRebuy(player.isWillRebuy());
 
             boolean revealHoleCards = player.getUserId().equals(viewerUserId)
                     || (revealSeatIndices != null && revealSeatIndices.contains(seatIndex));
@@ -77,6 +75,23 @@ public class SnapshotBroadcaster {
             responseBuilder.addPlayers(playerStateBuilder);
         }
         return responseBuilder.build();
+    }
+
+    /** 引擎内部 bool → 协议互斥枚举 */
+    private static HandStatus toHandStatus(Player player) {
+        if (player.isStoodUp()) {
+            return HandStatus.STOOD_UP;
+        }
+        if (!player.isActive()) {
+            return HandStatus.SITTING_OUT;
+        }
+        if (player.isFolded()) {
+            return HandStatus.FOLDED;
+        }
+        if (player.isAllIn()) {
+            return HandStatus.ALL_IN;
+        }
+        return HandStatus.IN_HAND;
     }
 
     public void sendRoomList(Channel channel, RoomListResponse roomListResponse) {
@@ -163,9 +178,18 @@ public class SnapshotBroadcaster {
         }
     }
 
-    public void sendSessionConnected(Channel channel, String sessionToken){
+    public void sendSessionConnected(
+            Channel channel,
+            String sessionToken,
+            String userId,
+            String username,
+            boolean authenticated
+    ) {
         SessionConnectedResponse sessionConnected = SessionConnectedResponse.newBuilder()
-                .setSessionToken(sessionToken)
+                .setSessionToken(sessionToken == null ? "" : sessionToken)
+                .setUserId(userId == null ? "" : userId)
+                .setUsername(username == null ? "" : username)
+                .setAuthenticated(authenticated)
                 .build();
         ServerMessage serverMessage = ServerMessage.newBuilder()
                 .setSessionConnected(sessionConnected)

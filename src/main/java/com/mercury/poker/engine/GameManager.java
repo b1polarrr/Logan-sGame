@@ -123,6 +123,44 @@ public class GameManager {
         player.setWillRebuy(false);
     }
 
+    /**
+     * 起身：占座旁观，不进入后续牌局。仅局间可操作。
+     */
+    public void playerStandUp(int seatIndex) {
+        if (table.getCurrentTurnIndex() >= 0) {
+            throw new IllegalStateException("牌局进行中无法起身，请本局结束后再试");
+        }
+        Player player = table.getSeats()[seatIndex];
+        if (player == null) {
+            throw new IllegalStateException("座位无人");
+        }
+        if (player.isStoodUp()) {
+            throw new IllegalStateException("已经起身");
+        }
+        player.setStoodUp(true);
+        player.setReady(false);
+        player.setActive(false);
+    }
+
+    /**
+     * 起身后再次坐下：恢复参与后续牌局。仅局间可操作。
+     */
+    public void playerSitBack(int seatIndex) {
+        if (table.getCurrentTurnIndex() >= 0) {
+            throw new IllegalStateException("牌局进行中无法坐下入局，请本局结束后再试");
+        }
+        Player player = table.getSeats()[seatIndex];
+        if (player == null) {
+            throw new IllegalStateException("座位无人");
+        }
+        if (!player.isStoodUp()) {
+            throw new IllegalStateException("当前不是起身状态");
+        }
+        player.setStoodUp(false);
+        player.setReady(false);
+        player.setActive(player.getChips() > 0);
+    }
+
     public boolean canStartNewHand() {
         // 局间 currentTurnIndex 为 -1；不能用底牌判断（上一局牌要等 startNewHand 才清）
         return table.getCurrentTurnIndex() < 0 && countSeatedPlayersWithChips() >= 2;
@@ -717,7 +755,7 @@ public class GameManager {
     private int countSeatedPlayersWithChips() {
         int count = 0;
         for (Player player : table.getSeats()) {
-            if (player != null && player.getChips() > 0) {
+            if (player != null && player.getChips() > 0 && !player.isStoodUp()) {
                 count++;
             }
         }

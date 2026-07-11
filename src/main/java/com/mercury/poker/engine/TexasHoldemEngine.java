@@ -69,6 +69,16 @@ public class TexasHoldemEngine implements GameEngine {
     }
 
     @Override
+    public void playerStandUp(int seatIndex) {
+        gameManager.playerStandUp(seatIndex);
+    }
+
+    @Override
+    public void playerSitBack(int seatIndex) {
+        gameManager.playerSitBack(seatIndex);
+    }
+
+    @Override
     public boolean canStartNewHand() {
         return gameManager.canStartNewHand();
     }

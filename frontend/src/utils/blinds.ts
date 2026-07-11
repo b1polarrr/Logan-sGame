@@ -1,4 +1,5 @@
 import type { TableSnapshot } from '../types/table'
+import { isParticipating } from '../types/table'
 
 /** 从庄家位起找下一个仍在局内的座位（与后端 getNextActiveSeat 一致） */
 function nextSeatInHand(
@@ -17,7 +18,7 @@ function nextSeatInHand(
 
 function seatsInHand(snapshot: TableSnapshot): number[] {
   return snapshot.players
-    .filter((player) => player.isInHand)
+    .filter((player) => isParticipating(player))
     .map((player) => player.seatIndex)
 }
 
