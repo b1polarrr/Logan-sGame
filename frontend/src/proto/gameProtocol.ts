@@ -57,7 +57,7 @@ message PlayerActionRequest {
   int32 small_blind = 7;
   int32 big_blind = 8;
   string session_token = 9;
-  string username = 10;
+  string user_id = 10;
   string password = 11;
 }
 message RoomInfo {

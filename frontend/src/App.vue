@@ -76,8 +76,8 @@ function updateCurrentRoomId(value: string) {
   currentRoomId.value = value
 }
 
-function handleLogin(payload: { username: string; password: string }) {
-  login(payload.username, payload.password)
+function handleLogin(payload: { userId: string; password: string }) {
+  login(payload.userId, payload.password)
 }
 
 onMounted(() => {

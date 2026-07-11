@@ -109,8 +109,8 @@ public class RoomRouter {
             throw new IllegalArgumentException("已在房间内，无法切换账号");
         }
 
-        UserAccount account = UserRepository.getINSTANCE().loginOrCreate(
-                request.getUsername(),
+        UserAccount account = UserRepository.getINSTANCE().login(
+                request.getUserId(),
                 request.getPassword()
         );
         SessionManager.getINSTANCE().bindLogin(ctx.channel(), account.getUserId(), account.getUsername());
@@ -134,7 +134,9 @@ public class RoomRouter {
             code = "AUTH_REQUIRED";
         } else if (exception instanceof IllegalArgumentException
                 && exception.getMessage() != null
-                && (exception.getMessage().contains("密码") || exception.getMessage().contains("用户名"))) {
+                && (exception.getMessage().contains("密码")
+                || exception.getMessage().contains("用户名")
+                || exception.getMessage().contains("账号"))) {
             code = "LOGIN_FAILED";
         } else if (exception instanceof IllegalArgumentException) {
             code = "INVALID_ACTION";

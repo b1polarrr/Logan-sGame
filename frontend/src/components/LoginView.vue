@@ -9,18 +9,18 @@ defineProps<{
 
 const emit = defineEmits<{
   connect: []
-  login: [payload: { username: string; password: string }]
+  login: [payload: { userId: string; password: string }]
 }>()
 
-const username = ref('')
+const userId = ref('')
 const password = ref('')
 
 function handleSubmit() {
-  const trimmedUsername = username.value.trim()
-  if (!trimmedUsername || !password.value) {
+  const trimmedUserId = userId.value.trim()
+  if (!trimmedUserId || !password.value) {
     return
   }
-  emit('login', { username: trimmedUsername, password: password.value })
+  emit('login', { userId: trimmedUserId, password: password.value })
 }
 </script>
 
@@ -28,7 +28,7 @@ function handleSubmit() {
   <main class="login-page">
     <section class="login-card">
       <h2>登录</h2>
-      <p class="hint">输入用户名与密码进入大厅。首次使用将自动创建账号。</p>
+      <p class="hint">使用账号 ID 与密码进入大厅。账号需预先写入数据库，不会自动创建。</p>
 
       <div v-if="!connected" class="connect-banner">
         <p>尚未连接服务器</p>
@@ -39,13 +39,13 @@ function handleSubmit() {
 
       <form v-else class="login-form" @submit.prevent="handleSubmit">
         <label>
-          <span>用户名</span>
+          <span>账号 ID</span>
           <input
-            v-model="username"
+            v-model="userId"
             type="text"
             autocomplete="username"
-            maxlength="32"
-            placeholder="2–32 位"
+            maxlength="64"
+            placeholder="如 u_demo_001"
             required
           />
         </label>
@@ -64,7 +64,7 @@ function handleSubmit() {
         <button
           type="submit"
           class="btn btn-primary btn-block"
-          :disabled="busy || !username.trim() || password.length < 4"
+          :disabled="busy || !userId.trim() || password.length < 4"
         >
           {{ busy ? '登录中…' : '登录' }}
         </button>

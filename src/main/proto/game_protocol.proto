@@ -29,7 +29,7 @@ enum ActionType {
   READY = 11;         // 准备（所有在座且有筹码的玩家均准备后开局）
   DECLINE_REBUY = 12; // 稍后再说（放弃本轮补码询问）
   STAND_UP = 13;      // 起身：占座旁观，不进入下一局，直到再次坐下
-  LOGIN = 14;         // 账号登录（用户名不存在则自动建号）
+  LOGIN = 14;         // 账号登录（user_id + password；不自动建号）
 }
 
 // 2. 客户端操作请求包裹
@@ -43,7 +43,7 @@ message PlayerActionRequest {
   int32 small_blind = 7;  // CREATE_ROOM 时使用，默认 10
   int32 big_blind = 8;    // CREATE_ROOM 时使用，默认 20
   string session_token = 9; // RECONNECT 时使用
-  string username = 10;     // LOGIN 时使用
+  string user_id = 10;      // LOGIN 时使用（登录账号 ID）
   string password = 11;     // LOGIN 时使用
 }
 

@@ -26,6 +26,7 @@ export interface SendActionOptions {
   sessionToken?: string
   username?: string
   password?: string
+  userId?: string
 }
 
 function buildWebSocketUrl(): string {
@@ -399,7 +400,7 @@ export function useGameSocket() {
     }
 
     if (actionName === 'LOGIN') {
-      payload.username = options.username ?? ''
+      payload.userId = options.userId ?? ''
       payload.password = options.password ?? ''
     }
 
@@ -419,7 +420,7 @@ export function useGameSocket() {
 
     appendLog(
       actionName === 'LOGIN'
-        ? '[已发送] LOGIN user=' + (options.username ?? '')
+        ? '[已发送] LOGIN userId=' + (options.userId ?? '')
         : '[已发送] ' +
             actionName +
             ' room=' +
@@ -431,7 +432,7 @@ export function useGameSocket() {
     )
   }
 
-  async function login(loginUsername: string, loginPassword: string) {
+  async function login(loginUserId: string, loginPassword: string) {
     if (!websocket || websocket.readyState !== WebSocket.OPEN) {
       appendLog('[错误] 请先连接')
       loginError.value = '请先连接服务器'
@@ -440,7 +441,7 @@ export function useGameSocket() {
     loginBusy.value = true
     loginError.value = ''
     await sendAction('LOGIN', {
-      username: loginUsername,
+      userId: loginUserId,
       password: loginPassword,
     })
   }
