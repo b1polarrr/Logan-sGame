@@ -7,6 +7,10 @@ import ShowdownStrip from './ShowdownStrip.vue'
 import { formatChips } from '../utils/chips'
 import { isHiddenCard } from '../utils/cards'
 import { resolveBlindSeatIndices } from '../utils/blinds'
+import {
+  playSoundsForSnapshotDiff,
+  unlockAudio,
+} from '../composables/useSoundEffects'
 import type { PlayerState, ShowdownResult, TableSnapshot } from '../types/table'
 import { isAllIn, isFolded, isParticipating, isStoodUp } from '../types/table'
 
@@ -90,6 +94,16 @@ watch(
   () => props.snapshot.roomId,
   () => {
     handEverStarted.value = false
+  },
+)
+
+/** 按快照差分播放音效（仅 flop / turnAndRiver / check / call） */
+const previousSoundSnapshot = ref<TableSnapshot | null>(null)
+watch(
+  () => props.snapshot,
+  (snapshot) => {
+    playSoundsForSnapshotDiff(previousSoundSnapshot.value, snapshot)
+    previousSoundSnapshot.value = snapshot
   },
 )
 
@@ -360,7 +374,33 @@ function submitRaise(amount: number) {
   if (targetTotal <= (myPlayer.value?.currentBet ?? 0)) {
     return
   }
+  unlockAudio()
   emit('raise', targetTotal)
+}
+
+function onSitDown(seatIndex: number) {
+  unlockAudio()
+  emit('sitDown', seatIndex)
+}
+
+function onReady() {
+  unlockAudio()
+  emit('ready')
+}
+
+function onFold() {
+  unlockAudio()
+  emit('fold')
+}
+
+function onCheck() {
+  unlockAudio()
+  emit('check')
+}
+
+function onCall() {
+  unlockAudio()
+  emit('call')
 }
 
 function submitAllIn() {
@@ -635,7 +675,7 @@ function shouldShowCards(player: TableSnapshot['players'][0] | null, seatIndex: 
               :show-ready-status="needsReadyBeforeFirstHand"
               :is-still-in-hand="slot.player ? isPlayerStillInHand(slot.player) : false"
               :is-winner="winnerSeatIndices.has(slot.seatIndex)"
-              @sit-down="emit('sitDown', slot.seatIndex)"
+              @sit-down="onSitDown(slot.seatIndex)"
             />
           </div>
         </div>
@@ -656,7 +696,7 @@ function shouldShowCards(player: TableSnapshot['players'][0] | null, seatIndex: 
           type="button"
           class="action-btn primary ready-btn"
           :disabled="!connected"
-          @click="emit('sitDown', mySeatIndex)"
+          @click="onSitDown(mySeatIndex)"
         >
           坐下
         </button>
@@ -667,7 +707,7 @@ function shouldShowCards(player: TableSnapshot['players'][0] | null, seatIndex: 
           type="button"
           class="action-btn primary ready-btn"
           :disabled="!connected"
-          @click="emit('ready')"
+          @click="onReady()"
         >
           准备
         </button>
@@ -710,7 +750,7 @@ function shouldShowCards(player: TableSnapshot['players'][0] | null, seatIndex: 
           type="button"
           class="action-btn fold"
           :disabled="!connected || !canTakeAction || !!showdownResult"
-          @click="emit('fold')"
+          @click="onFold()"
         >
           <span class="btn-icon">✕</span>
           弃牌
@@ -720,7 +760,7 @@ function shouldShowCards(player: TableSnapshot['players'][0] | null, seatIndex: 
           type="button"
           class="action-btn"
           :disabled="!connected || !canTakeAction || callAmount > 0 || !!showdownResult"
-          @click="emit('check')"
+          @click="onCheck()"
         >
           过牌
         </button>
@@ -730,7 +770,7 @@ function shouldShowCards(player: TableSnapshot['players'][0] | null, seatIndex: 
           type="button"
           class="action-btn primary"
           :disabled="!connected || !canTakeAction || callAmount <= 0 || !!showdownResult"
-          @click="emit('call')"
+          @click="onCall()"
         >
           跟注<span v-if="callAmount > 0"> {{ formatChips(callAmount, bigBlind) }}</span>
         </button>
