@@ -2,10 +2,9 @@
 import { ref } from 'vue'
 import type { RoomInfo } from '../composables/useGameSocket'
 
-const props = defineProps<{
+defineProps<{
   connected: boolean
   rooms: RoomInfo[]
-  currentRoomId: string
 }>()
 
 const emit = defineEmits<{
@@ -13,7 +12,6 @@ const emit = defineEmits<{
   refreshRoomList: []
   createRoom: [options: { maxSeats: number; smallBlind: number; bigBlind: number }]
   joinRoom: [roomId: string]
-  'update:currentRoomId': [value: string]
 }>()
 
 const wsHost = location.host
@@ -34,20 +32,8 @@ function handleCreateRoom() {
   })
 }
 
-function handleJoinCurrentRoom() {
-  if (!props.currentRoomId.trim()) {
-    return
-  }
-  emit('joinRoom', props.currentRoomId.trim())
-}
-
 function handleJoinRoom(roomId: string) {
   emit('joinRoom', roomId)
-}
-
-function updateRoomId(event: Event) {
-  const target = event.target as HTMLInputElement
-  emit('update:currentRoomId', target.value)
 }
 </script>
 
@@ -91,29 +77,6 @@ function updateRoomId(event: Event) {
           @click="handleCreateRoom"
         >
           创建德州房间
-        </button>
-      </section>
-
-      <section class="panel join-panel">
-        <h3>加入房间</h3>
-        <div class="form-grid">
-          <label class="wide">
-            <span>房间号</span>
-            <input
-              :value="currentRoomId"
-              type="text"
-              placeholder="创建后自动填入"
-              @input="updateRoomId"
-            />
-          </label>
-        </div>
-        <button
-          type="button"
-          class="btn btn-secondary btn-block"
-          :disabled="!connected || !currentRoomId.trim()"
-          @click="handleJoinCurrentRoom"
-        >
-          进入房间
         </button>
       </section>
     </div>
@@ -220,15 +183,9 @@ function updateRoomId(event: Event) {
 
 .lobby-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 16px;
   margin-bottom: 16px;
-}
-
-@media (max-width: 640px) {
-  .lobby-grid {
-    grid-template-columns: 1fr;
-  }
 }
 
 .panel {
@@ -261,10 +218,6 @@ function updateRoomId(event: Event) {
   grid-template-columns: repeat(3, 1fr);
   gap: 12px;
   margin-bottom: 16px;
-}
-
-.join-panel .form-grid .wide {
-  grid-column: 1 / -1;
 }
 
 label {

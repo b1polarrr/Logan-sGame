@@ -28,7 +28,6 @@ function handleSubmit() {
   <main class="login-page">
     <section class="login-card">
       <h2>登录</h2>
-      <p class="hint">使用账号 ID 与密码进入大厅。账号需预先写入数据库，不会自动创建。</p>
 
       <div v-if="!connected" class="connect-banner">
         <p>尚未连接服务器</p>
@@ -45,7 +44,6 @@ function handleSubmit() {
             type="text"
             autocomplete="username"
             maxlength="64"
-            placeholder="如 u_demo_001"
             required
           />
         </label>
@@ -56,7 +54,6 @@ function handleSubmit() {
             type="password"
             autocomplete="current-password"
             maxlength="64"
-            placeholder="至少 4 位"
             required
           />
         </label>
@@ -88,16 +85,9 @@ function handleSubmit() {
 }
 
 .login-card h2 {
-  margin: 0 0 8px;
+  margin: 0 0 24px;
   font-size: 24px;
   font-weight: 600;
-}
-
-.hint {
-  margin: 0 0 24px;
-  font-size: 13px;
-  line-height: 1.5;
-  color: #9ca3af;
 }
 
 .connect-banner {

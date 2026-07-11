@@ -7,10 +7,10 @@ import ShowdownStrip from './ShowdownStrip.vue'
 import { formatChips } from '../utils/chips'
 import { isHiddenCard } from '../utils/cards'
 import { resolveBlindSeatIndices } from '../utils/blinds'
-import {
-  playSoundsForSnapshotDiff,
-  unlockAudio,
-} from '../composables/useSoundEffects'
+// import {
+//   playSoundsForSnapshotDiff,
+//   unlockAudio,
+// } from '../composables/useSoundEffects'
 import type { PlayerState, ShowdownResult, TableSnapshot } from '../types/table'
 import { isAllIn, isFolded, isParticipating, isStoodUp } from '../types/table'
 
@@ -97,15 +97,15 @@ watch(
   },
 )
 
-/** 按快照差分播放音效（仅 flop / turnAndRiver / check / call） */
-const previousSoundSnapshot = ref<TableSnapshot | null>(null)
-watch(
-  () => props.snapshot,
-  (snapshot) => {
-    playSoundsForSnapshotDiff(previousSoundSnapshot.value, snapshot)
-    previousSoundSnapshot.value = snapshot
-  },
-)
+// /** 按快照差分播放音效（仅 flop / turnAndRiver / check / call） */
+// const previousSoundSnapshot = ref<TableSnapshot | null>(null)
+// watch(
+//   () => props.snapshot,
+//   (snapshot) => {
+//     playSoundsForSnapshotDiff(previousSoundSnapshot.value, snapshot)
+//     previousSoundSnapshot.value = snapshot
+//   },
+// )
 
 const myPlayer = computed(() =>
   props.snapshot.players.find((player) => player.seatIndex === props.mySeatIndex),
@@ -374,32 +374,32 @@ function submitRaise(amount: number) {
   if (targetTotal <= (myPlayer.value?.currentBet ?? 0)) {
     return
   }
-  unlockAudio()
+  // unlockAudio()
   emit('raise', targetTotal)
 }
 
 function onSitDown(seatIndex: number) {
-  unlockAudio()
+  // unlockAudio()
   emit('sitDown', seatIndex)
 }
 
 function onReady() {
-  unlockAudio()
+  // unlockAudio()
   emit('ready')
 }
 
 function onFold() {
-  unlockAudio()
+  // unlockAudio()
   emit('fold')
 }
 
 function onCheck() {
-  unlockAudio()
+  // unlockAudio()
   emit('check')
 }
 
 function onCall() {
-  unlockAudio()
+  // unlockAudio()
   emit('call')
 }
 

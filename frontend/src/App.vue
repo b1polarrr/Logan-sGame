@@ -72,10 +72,6 @@ async function handleCreateRoom(options: {
   }
 }
 
-function updateCurrentRoomId(value: string) {
-  currentRoomId.value = value
-}
-
 function handleLogin(payload: { userId: string; password: string }) {
   login(payload.userId, payload.password)
 }
@@ -131,12 +127,10 @@ onMounted(() => {
       v-else
       :connected="connected"
       :rooms="rooms"
-      :current-room-id="currentRoomId"
       @connect="connect"
       @refresh-room-list="refreshRoomList"
       @create-room="handleCreateRoom"
       @join-room="joinRoom"
-      @update:current-room-id="updateCurrentRoomId"
     />
 
     <LogPanel :logs="logs" />

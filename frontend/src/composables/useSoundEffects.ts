@@ -28,17 +28,18 @@ function createAudio(src: string): HTMLAudioElement {
 
 /** 浏览器需用户手势后才能播音；在坐下/准备/操作时调用一次即可 */
 export function unlockAudio() {
-  if (unlocked) {
-    return
-  }
-  unlocked = true
-  const probe = createAudio(SOUND_FILES.check)
-  probe.volume = 0
-  void probe.play().then(() => {
-    probe.pause()
-  }).catch(() => {
-    unlocked = false
-  })
+  // 音效暂时全部关闭
+  // if (unlocked) {
+  //   return
+  // }
+  // unlocked = true
+  // const probe = createAudio(SOUND_FILES.check)
+  // probe.volume = 0
+  // void probe.play().then(() => {
+  //   probe.pause()
+  // }).catch(() => {
+  //   unlocked = false
+  // })
 }
 
 export function isSoundMuted(): boolean {
@@ -50,18 +51,19 @@ export function setSoundMuted(next: boolean) {
   localStorage.setItem(MUTED_KEY, next ? '1' : '0')
 }
 
-export function playSound(name: SoundName) {
-  if (muted) {
-    return
-  }
-  const src = SOUND_FILES[name]
-  if (!src) {
-    return
-  }
-  const audio = createAudio(src)
-  void audio.play().catch(() => {
-    // 未解锁时静默失败，等下次用户手势再 unlock
-  })
+export function playSound(_name: SoundName) {
+  // 音效暂时全部关闭
+  // if (muted) {
+  //   return
+  // }
+  // const src = SOUND_FILES[name]
+  // if (!src) {
+  //   return
+  // }
+  // const audio = createAudio(src)
+  // void audio.play().catch(() => {
+  //   // 未解锁时静默失败，等下次用户手势再 unlock
+  // })
 }
 
 /**
@@ -79,11 +81,11 @@ export function playSoundsForSnapshotDiff(
   const previousCardCount = previous.communityCards.length
   const nextCardCount = next.communityCards.length
   if (nextCardCount > previousCardCount) {
-    if (nextCardCount === 3) {
-      playSound('flop')
-    } else if (nextCardCount === 4 || nextCardCount === 5) {
-      playSound('turnAndRiver')
-    }
+    // if (nextCardCount === 3) {
+    //   playSound('flop')
+    // } else if (nextCardCount === 4 || nextCardCount === 5) {
+    //   playSound('turnAndRiver')
+    // }
     return
   }
 
@@ -111,14 +113,14 @@ export function playSoundsForSnapshotDiff(
       // playSound('raise')
       return
     }
-    playSound('call')
+    // playSound('call')
     return
   }
 
-  if (
-    nextActor.currentBet === previousActor.currentBet &&
-    nextActor.handStatus !== 'FOLDED'
-  ) {
-    playSound('check')
-  }
+  // if (
+  //   nextActor.currentBet === previousActor.currentBet &&
+  //   nextActor.handStatus !== 'FOLDED'
+  // ) {
+  //   playSound('check')
+  // }
 }
