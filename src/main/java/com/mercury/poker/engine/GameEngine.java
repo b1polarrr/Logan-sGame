@@ -34,7 +34,7 @@ public interface GameEngine {
     /** 稍后再说（放弃本轮补码询问） */
     void playerDeclineRebuy(int seatIndex);
 
-    /** 起身：占座旁观，不进入后续牌局 */
+    /** 起身：占座旁观，不进入后续牌局（局间，或局内已弃牌/未参与） */
     void playerStandUp(int seatIndex);
 
     /** 起身后再次坐下，恢复参与牌局 */

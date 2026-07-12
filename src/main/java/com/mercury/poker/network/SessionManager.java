@@ -41,19 +41,46 @@ public class SessionManager {
     /** 断开连接：标记离线、持久化并从内存移除 */
     public void onDisconnect(Channel channel) {
         PlayerSession session = sessions.get(channel.id());
-        if (session != null) {
-            if (session.getRoomId() != null && session.getSeatIndex() >= 0) {
-                RoomRouter.getInstance().markPlayerOffline(session.getUserId(), session.getRoomId());
-            }
-            persistSession(channel);
-            if (session.getRoomId() != null) {
-                Set<Channel> channels = roomChannels.get(session.getRoomId());
-                if (channels != null) {
-                    channels.remove(channel);
-                }
+        if (session == null) {
+            sessions.remove(channel.id());
+            return;
+        }
+        String roomId = session.getRoomId();
+        String userId = session.getUserId();
+        int seatIndex = session.getSeatIndex();
+        persistSessionData(session);
+        if (roomId != null) {
+            Set<Channel> channels = roomChannels.get(roomId);
+            if (channels != null) {
+                channels.remove(channel);
             }
         }
+        // 先移出本连接，再判断是否还有同账号新连接占座，避免重连竞态把 isOnline 打回 false
         sessions.remove(channel.id());
+        if (roomId != null && seatIndex >= 0
+                && !hasActiveSeatedSession(userId, roomId)) {
+            RoomRouter.getInstance().markPlayerOffline(userId, roomId);
+        }
+    }
+
+    /**
+     * 该 userId 在指定房间是否仍有其它已坐下的活跃连接（用于断线时避免误标离线）。
+     */
+    public boolean hasActiveSeatedSession(String userId, String roomId) {
+        if (userId == null || roomId == null) {
+            return false;
+        }
+        for (PlayerSession otherSession : sessions.values()) {
+            if (otherSession == null) {
+                continue;
+            }
+            if (userId.equals(otherSession.getUserId())
+                    && roomId.equals(otherSession.getRoomId())
+                    && otherSession.getSeatIndex() >= 0) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** 加入房间：记录 roomId，并把 channel 加入该房间集合 */
@@ -144,7 +171,14 @@ public class SessionManager {
 
     private void persistSession(Channel channel) {
         PlayerSession session = sessions.get(channel.id());
-        if (session == null || session.getSessionToken() == null) {
+        if (session == null) {
+            return;
+        }
+        persistSessionData(session);
+    }
+
+    private void persistSessionData(PlayerSession session) {
+        if (session.getSessionToken() == null) {
             return;
         }
         RedisSessionStore.getINSTANCE().save(

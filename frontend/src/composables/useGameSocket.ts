@@ -109,6 +109,13 @@ export function useGameSocket() {
   }
 
   function updateMySeatFromSnapshot(snapshot: TableSnapshot) {
+    if (userId.value) {
+      const selfPlayer = snapshot.players.find((player) => player.userId === userId.value)
+      if (selfPlayer) {
+        mySeatIndex.value = selfPlayer.seatIndex
+        return
+      }
+    }
     if (mySeatIndex.value >= 0) {
       const stillSeated = snapshot.players.some(
         (player) => player.seatIndex === mySeatIndex.value,
@@ -116,11 +123,6 @@ export function useGameSocket() {
       if (!stillSeated) {
         mySeatIndex.value = -1
       }
-      return
-    }
-    const seatedCount = snapshot.players.length
-    if (seatedCount === 1 && mySeatIndex.value < 0) {
-      // 单人进房时尚未坐下，保持 -1
     }
   }
 

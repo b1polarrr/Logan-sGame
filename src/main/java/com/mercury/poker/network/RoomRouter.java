@@ -122,7 +122,9 @@ public class RoomRouter {
                 updatedSession.getUsername(),
                 true
         );
-        handleListRooms(ctx);
+        if (!tryRestoreActiveSeat(ctx, updatedSession)) {
+            handleListRooms(ctx);
+        }
         System.out.println("玩家登录成功: " + account.getUsername() + " (" + account.getUserId() + ")");
     }
 
@@ -294,7 +296,15 @@ public class RoomRouter {
         if (seatIndex < 0 || seatIndex >= table.getSeats().length) {
             throw new IllegalArgumentException("非法座位号: " + seatIndex);
         }
-        if (table.getSeats()[seatIndex] != null) {
+        Player occupied = table.getSeats()[seatIndex];
+        if (occupied != null) {
+            // 同账号认领自己的离线座位，继续当前牌局
+            if (occupied.getUserId().equals(session.getUserId())) {
+                reclaimSeat(ctx, occupied, seatIndex);
+                System.out.println("玩家 " + session.getUsername() + " 认领原座位 " + seatIndex);
+                broadcastSnapshot(gameEngine, table.getRoomId());
+                return;
+            }
             throw new IllegalStateException("座位 " + seatIndex + " 已有人");
         }
         Player player = new Player(session.getUserId(), session.getUsername(), DEFAULT_BUY_IN);
@@ -302,12 +312,6 @@ public class RoomRouter {
         SessionManager.getINSTANCE().sitDown(ctx.channel(), seatIndex);
         clearAllReady(table);
         System.out.println("玩家 " + session.getUsername() + " 坐到座位 " + seatIndex);
-        // publishEvent("player_sat", Map.of(
-        //         "roomId", table.getRoomId(),
-        //         "userId", session.getUserId(),
-        //         "username", session.getUsername(),
-        //         "seatIndex", String.valueOf(seatIndex)
-        // ));
         markEmptyState(table.getRoomId(), gameEngine);
         RedisRoomRegistry.getINSTANCE().updateSeatedCount(
                 table.getRoomId(),
@@ -361,12 +365,14 @@ public class RoomRouter {
 
     private void handleJoinRoom(ChannelHandlerContext ctx, GameEngine gameEngine, PlayerSession session, String roomId) {
         SessionManager.getINSTANCE().joinRoom(ctx.channel(), roomId);
-        // publishEvent("room_joined", Map.of(
-        //         "roomId", roomId,
-        //         "userId", session.getUserId(),
-        //         "username", session.getUsername()
-        // ));
-        System.out.println("玩家 " + session.getUsername() + "加入房间" + session.getRoomId());
+        int existingSeat = findSeatIndexByUserId(gameEngine.getTable(), session.getUserId());
+        if (existingSeat >= 0) {
+            Player player = gameEngine.getTable().getSeats()[existingSeat];
+            reclaimSeat(ctx, player, existingSeat);
+            System.out.println("玩家 " + session.getUsername() + " 加入房间并认领座位 " + existingSeat);
+        } else {
+            System.out.println("玩家 " + session.getUsername() + "加入房间" + session.getRoomId());
+        }
         broadcastSnapshot(gameEngine, roomId);
     }
 
@@ -469,6 +475,11 @@ public class RoomRouter {
         }
 
         if (roomId == null) {
+            PlayerSession restoredSession = SessionManager.getINSTANCE().getSession(ctx.channel());
+            if (restoredSession != null && tryRestoreActiveSeat(ctx, restoredSession)) {
+                System.out.println("玩家 " + username + " 重连后按桌上座位自动回房");
+                return;
+            }
             handleListRooms(ctx);
             System.out.println("玩家 " + username + " 重连成功（大厅）");
             return;
@@ -484,9 +495,23 @@ public class RoomRouter {
 
         if (seatIndex >= 0) {
             Table table = gameEngine.getTable();
-            if (seatIndex < table.getSeats().length) {
-                Player player = table.getSeats()[seatIndex];
-                if (player != null && player.getUserId().equals(userId)) {
+            Player player = seatIndex < table.getSeats().length ? table.getSeats()[seatIndex] : null;
+            if (player == null || !userId.equals(player.getUserId())) {
+                seatIndex = findSeatIndexByUserId(table, userId);
+                if (seatIndex >= 0) {
+                    SessionManager.getINSTANCE().sitDown(ctx.channel(), seatIndex);
+                    player = table.getSeats()[seatIndex];
+                }
+            }
+            if (player != null && userId.equals(player.getUserId())) {
+                player.setOnline(true);
+            }
+        } else {
+            seatIndex = findSeatIndexByUserId(gameEngine.getTable(), userId);
+            if (seatIndex >= 0) {
+                SessionManager.getINSTANCE().sitDown(ctx.channel(), seatIndex);
+                Player player = gameEngine.getTable().getSeats()[seatIndex];
+                if (player != null) {
                     player.setOnline(true);
                 }
             }
@@ -494,6 +519,51 @@ public class RoomRouter {
 
         broadcastSnapshot(gameEngine, roomId);
         System.out.println("玩家 " + username + " 重连成功，房间 " + roomId + " 座位 " + seatIndex);
+    }
+
+    /**
+     * 登录后扫描活跃房间：若桌上仍有该账号座位，自动回房并继续牌局。
+     */
+    private boolean tryRestoreActiveSeat(ChannelHandlerContext ctx, PlayerSession session) {
+        String userId = session.getUserId();
+        for (Map.Entry<String, GameEngine> entry : activeRoom.entrySet()) {
+            String roomId = entry.getKey();
+            GameEngine gameEngine = entry.getValue();
+            int seatIndex = findSeatIndexByUserId(gameEngine.getTable(), userId);
+            if (seatIndex < 0) {
+                continue;
+            }
+            Player player = gameEngine.getTable().getSeats()[seatIndex];
+            SessionManager.getINSTANCE().joinRoom(ctx.channel(), roomId);
+            reclaimSeat(ctx, player, seatIndex);
+            broadcastSnapshot(gameEngine, roomId);
+            System.out.println("登录后自动回到房间 " + roomId + " 座位 " + seatIndex);
+            return true;
+        }
+        return false;
+    }
+
+    /** 在桌上按 userId 查找座位，找不到返回 -1 */
+    private int findSeatIndexByUserId(Table table, String userId) {
+        if (userId == null || userId.isBlank()) {
+            return -1;
+        }
+        Player[] seats = table.getSeats();
+        for (int seatIndex = 0; seatIndex < seats.length; seatIndex++) {
+            Player player = seats[seatIndex];
+            if (player != null && userId.equals(player.getUserId())) {
+                return seatIndex;
+            }
+        }
+        return -1;
+    }
+
+    /** 认领已有座位：标记在线并绑定会话座位号 */
+    private void reclaimSeat(ChannelHandlerContext ctx, Player player, int seatIndex) {
+        if (player != null) {
+            player.setOnline(true);
+        }
+        SessionManager.getINSTANCE().sitDown(ctx.channel(), seatIndex);
     }
 
     /** 玩家断线时标记桌上座位离线并广播快照 */

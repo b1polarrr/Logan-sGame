@@ -124,18 +124,19 @@ public class GameManager {
     }
 
     /**
-     * 起身：占座旁观，不进入后续牌局。仅局间可操作。
+     * 起身：占座旁观，不进入后续牌局。
+     * 局间可随时起身；局内仅当已弃牌或未参与本局时可起身（仍在牌面中 / 全下不可）。
      */
     public void playerStandUp(int seatIndex) {
-        if (table.getCurrentTurnIndex() >= 0) {
-            throw new IllegalStateException("牌局进行中无法起身，请本局结束后再试");
-        }
         Player player = table.getSeats()[seatIndex];
         if (player == null) {
             throw new IllegalStateException("座位无人");
         }
         if (player.isStoodUp()) {
             throw new IllegalStateException("已经起身");
+        }
+        if (table.getCurrentTurnIndex() >= 0 && player.isActive() && !player.isFolded()) {
+            throw new IllegalStateException("仍在本局中，无法起身");
         }
         player.setStoodUp(true);
         player.setReady(false);

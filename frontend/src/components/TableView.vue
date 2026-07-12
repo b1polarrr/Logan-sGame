@@ -147,7 +147,11 @@ const showGameplayActions = computed(() => {
   if (canClickReady.value || needsReadyBeforeFirstHand.value) {
     return false
   }
-  if (props.snapshot.currentTurnIndex >= 0 && !isParticipating(myPlayer.value)) {
+  // 弃牌 / 未参与：不展示灰掉的弃牌跟注，改走「起身」等旁观操作
+  if (
+    props.snapshot.currentTurnIndex >= 0 &&
+    (isFolded(myPlayer.value) || !isParticipating(myPlayer.value))
+  ) {
     return false
   }
   if (
@@ -163,14 +167,16 @@ const showGameplayActions = computed(() => {
   return true
 })
 
-const canStandUp = computed(
-  () =>
-    isSeated.value &&
-    myPlayer.value != null &&
-    !isStoodUp(myPlayer.value) &&
-    props.snapshot.currentTurnIndex < 0 &&
-    !props.showdownResult,
-)
+/** 局间可起身；局内/摊牌中仅弃牌或未参与本局时可起身 */
+const canStandUp = computed(() => {
+  if (!isSeated.value || myPlayer.value == null || isStoodUp(myPlayer.value)) {
+    return false
+  }
+  if (props.snapshot.currentTurnIndex < 0 && !props.showdownResult) {
+    return true
+  }
+  return isFolded(myPlayer.value) || !isParticipating(myPlayer.value)
+})
 
 const canSitBack = computed(
   () =>
@@ -855,7 +861,8 @@ function shouldShowCards(player: TableSnapshot['players'][0] | null, seatIndex: 
       </div>
 
       <p v-if="isSeated && myPlayer && isStoodUp(myPlayer)" class="turn-tip">
-        已起身旁观，仍占座位；点击「坐下」后可再入局
+        <template v-if="canSitBack">已起身旁观，仍占座位；点击「坐下」后可再入局</template>
+        <template v-else>已起身旁观，仍占座位；本局结束后可再坐下入局</template>
       </p>
       <p v-else-if="isSeated && amStillInHand && !showdownResult" class="turn-tip">已全下，等待摊牌…</p>
       <p v-else-if="isSeated && isMyTurn && canTakeAction" class="turn-tip active">轮到你了</p>
