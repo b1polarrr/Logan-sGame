@@ -9,6 +9,8 @@ public class Table implements Serializable {
     private final Player[] seats; //固定座位的数组
     private final List<Card> communityCards; //公共牌
     private final Deck deck; //牌堆
+    /** 已离座玩家的本场盈亏（座位已空，快照仍下发） */
+    private final List<SessionProfitEntry> departedProfits;
 
     private int pot; //主底池筹码量
     private int currentMaxBet; //当前轮次全场最高的下注额
@@ -23,6 +25,7 @@ public class Table implements Serializable {
         this.seats = new Player[maxSeats];
         this.communityCards = new ArrayList<>();
         this.deck = new Deck();
+        this.departedProfits = new ArrayList<>();
         this.pot = 0;
         this.currentMaxBet = 0;
         this.dealerIndex = 0;
@@ -39,13 +42,33 @@ public class Table implements Serializable {
         }
         seats[seatIndex] = player;
         player.setSeatIndex(seatIndex);
+        // 同账号再次入座：从已离座盈亏中移除，改由在座玩家实时盈亏展示
+        departedProfits.removeIf(entry -> player.getUserId().equals(entry.getUserId()));
     }
 
-    // 玩家站起/离开房间
+    // 玩家站起/离开房间（清空座位）
     public void standUp(int seatIndex){
         if (seatIndex >= 0 && seatIndex < seats.length){
             seats[seatIndex] = null;
         }
+    }
+
+    /** 离座时写入本场盈亏；同账号再次离座则覆盖旧记录 */
+    public void recordDepartedProfit(Player player) {
+        if (player == null) {
+            return;
+        }
+        departedProfits.removeIf(entry -> player.getUserId().equals(entry.getUserId()));
+        departedProfits.add(new SessionProfitEntry(
+                player.getUserId(),
+                player.getUsername(),
+                player.getSessionProfit(),
+                player.getSeatIndex()
+        ));
+    }
+
+    public List<SessionProfitEntry> getDepartedProfits() {
+        return departedProfits;
     }
 
     //重置牌桌，准备新一局

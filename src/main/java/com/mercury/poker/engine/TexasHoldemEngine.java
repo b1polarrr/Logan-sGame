@@ -79,6 +79,11 @@ public class TexasHoldemEngine implements GameEngine {
     }
 
     @Override
+    public void playerLeaveTable(int seatIndex) {
+        gameManager.playerLeaveTable(seatIndex);
+    }
+
+    @Override
     public boolean canStartNewHand() {
         return gameManager.canStartNewHand();
     }

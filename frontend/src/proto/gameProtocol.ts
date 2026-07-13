@@ -15,6 +15,7 @@ export const ACTION_MAP = {
   DECLINE_REBUY: 12,
   STAND_UP: 13,
   LOGIN: 14,
+  LEAVE_TABLE: 15,
 } as const
 
 export const GAME_TYPE_MAP = {
@@ -46,6 +47,7 @@ enum ActionType {
   DECLINE_REBUY = 12;
   STAND_UP = 13;
   LOGIN = 14;
+  LEAVE_TABLE = 15;
 }
 message PlayerActionRequest {
   ActionType action_type = 1;
@@ -123,6 +125,13 @@ message PlayerState {
   int32 session_profit = 10;
   bool is_ready = 11;
   bool will_rebuy = 12;
+  int32 locked_chips = 14;
+}
+message SessionProfitEntry {
+  string user_id = 1;
+  string username = 2;
+  int32 session_profit = 3;
+  int32 last_seat_index = 4;
 }
 message TableSnapshotResponse {
   string room_id = 1;
@@ -134,6 +143,7 @@ message TableSnapshotResponse {
   repeated PlayerState players = 7;
   int32 small_blind_index = 8;
   int32 big_blind_index = 9;
+  repeated SessionProfitEntry departed_profits = 10;
 }
 `
 

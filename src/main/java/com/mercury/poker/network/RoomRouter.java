@@ -172,6 +172,7 @@ public class RoomRouter {
                 case READY -> handleReady(gameEngine, session);
                 case DECLINE_REBUY -> handleDeclineRebuy(gameEngine, session);
                 case STAND_UP -> handleStandUp(gameEngine, session);
+                case LEAVE_TABLE -> handleLeaveTable(ctx, gameEngine, session);
                 default -> System.out.println("未支持的网络指令: " + request.getActionType());
             }
         } catch (Exception exception) {
@@ -274,6 +275,22 @@ public class RoomRouter {
         System.out.println("座位 " + seatIndex + " 起身旁观");
         tryStartNextHandIfEligible(gameEngine, session.getRoomId());
         broadcastSnapshot(gameEngine, session.getRoomId());
+    }
+
+    private void handleLeaveTable(ChannelHandlerContext ctx, GameEngine gameEngine, PlayerSession session) {
+        requireSeated(session);
+        int seatIndex = session.getSeatIndex();
+        String roomId = session.getRoomId();
+        gameEngine.playerLeaveTable(seatIndex);
+        SessionManager.getINSTANCE().clearRoom(ctx.channel());
+        System.out.println("座位 " + seatIndex + " 返回大厅（已离座，盈亏保留）");
+        markEmptyState(roomId, gameEngine);
+        RedisRoomRegistry.getINSTANCE().updateSeatedCount(
+                roomId,
+                countSeatedPlayers(gameEngine.getTable())
+        );
+        broadcastSnapshot(gameEngine, roomId);
+        handleListRooms(ctx);
     }
 
     private void handleSitDown(ChannelHandlerContext ctx, GameEngine gameEngine, PlayerSession session, int seatIndex) {

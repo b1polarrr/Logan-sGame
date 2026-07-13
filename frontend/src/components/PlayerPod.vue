@@ -4,7 +4,7 @@ import PlayingCard from './PlayingCard.vue'
 import { formatChips } from '../utils/chips'
 import { isHiddenCard } from '../utils/cards'
 import type { PlayerState } from '../types/table'
-import { isAllIn, isFolded, isStoodUp } from '../types/table'
+import { isAllIn, isFolded, isStoodUp, totalStack } from '../types/table'
 
 const props = defineProps<{
   player: PlayerState | null
@@ -43,8 +43,12 @@ const avatarInitial = computed(() => {
 
 const chipLabel = computed(() => {
   if (!props.player) return ''
-  return formatChips(props.player.chips, props.bigBlind)
+  return formatChips(totalStack(props.player), props.bigBlind)
 })
+
+const chipsLocked = computed(
+  () => props.player != null && (props.player.lockedChips ?? 0) > 0,
+)
 </script>
 
 <template>
@@ -102,11 +106,14 @@ const chipLabel = computed(() => {
           <span v-else-if="isStoodUp(player)" class="badge stood">起身</span>
           <span v-else-if="isFolded(player)" class="badge folded">弃牌</span>
           <span v-else-if="isAllIn(player) && isStillInHand" class="badge all-in">全下</span>
-          <span v-else-if="player.chips === 0 && player.willRebuy" class="badge rebuying">补码中</span>
-          <span v-else-if="player.chips === 0 && !player.willRebuy" class="badge rebuy-next">下把玩</span>
+          <span v-else-if="player.chips === 0 && (player.lockedChips ?? 0) === 0 && player.willRebuy" class="badge rebuying">补码中</span>
+          <span v-else-if="player.chips === 0 && (player.lockedChips ?? 0) === 0 && !player.willRebuy" class="badge rebuy-next">下把玩</span>
           <span v-else-if="!player.isOnline" class="badge offline">离线</span>
         </div>
-        <div class="chips-plate">{{ chipLabel }}</div>
+        <div class="chips-plate">
+          {{ chipLabel }}
+          <span v-if="chipsLocked" class="chips-lock">锁</span>
+        </div>
         <div v-if="handTypeLabel" class="hand-type-plate">{{ handTypeLabel }}</div>
       </div>
     </template>
@@ -458,6 +465,10 @@ const chipLabel = computed(() => {
 }
 
 .chips-plate {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
   padding: 4px 10px 6px;
   text-align: center;
   font-size: 13px;
@@ -465,6 +476,15 @@ const chipLabel = computed(() => {
   color: #3498db;
   background: rgba(0, 0, 0, 0.35);
   border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.chips-lock {
+  font-size: 10px;
+  font-weight: 700;
+  color: #e67e22;
+  padding: 0 3px;
+  border-radius: 3px;
+  background: rgba(230, 126, 34, 0.2);
 }
 
 .hand-type-plate {

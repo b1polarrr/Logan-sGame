@@ -4,6 +4,7 @@ import com.mercury.poker.engine.GameEngine;
 import com.mercury.poker.engine.HandShowdownResult;
 import com.mercury.poker.engine.model.Card;
 import com.mercury.poker.engine.model.Player;
+import com.mercury.poker.engine.model.SessionProfitEntry;
 import com.mercury.poker.engine.model.Table;
 import com.mercury.poker.network.protocol.*;
 import io.netty.buffer.Unpooled;
@@ -63,7 +64,8 @@ public class SnapshotBroadcaster {
                     .setIsOnline(player.isOnline())
                     .setSessionProfit(player.getSessionProfit())
                     .setIsReady(player.isReady())
-                    .setWillRebuy(player.isWillRebuy());
+                    .setWillRebuy(player.isWillRebuy())
+                    .setLockedChips(player.getLockedChips());
 
             boolean revealHoleCards = player.getUserId().equals(viewerUserId)
                     || (revealSeatIndices != null && revealSeatIndices.contains(seatIndex));
@@ -73,6 +75,16 @@ public class SnapshotBroadcaster {
                 }
             }
             responseBuilder.addPlayers(playerStateBuilder);
+        }
+
+        for (SessionProfitEntry entry : table.getDepartedProfits()) {
+            responseBuilder.addDepartedProfits(
+                    com.mercury.poker.network.protocol.SessionProfitEntry.newBuilder()
+                            .setUserId(entry.getUserId())
+                            .setUsername(entry.getUsername())
+                            .setSessionProfit(entry.getSessionProfit())
+                            .setLastSeatIndex(entry.getLastSeatIndex())
+            );
         }
         return responseBuilder.build();
     }

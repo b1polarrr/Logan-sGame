@@ -6,6 +6,7 @@ import LobbyView from './components/LobbyView.vue'
 import TableView from './components/TableView.vue'
 import LogPanel from './components/LogPanel.vue'
 import { useGameSocket } from './composables/useGameSocket'
+import { isStoodUp } from './types/table'
 
 const gameSocket = useGameSocket()
 
@@ -40,6 +41,16 @@ const {
   ready,
   backToLobby,
 } = gameSocket
+
+const canLeaveToLobby = computed(() => {
+  if (!tableSnapshot.value || mySeatIndex.value < 0) {
+    return false
+  }
+  const player = tableSnapshot.value.players.find(
+    (entry) => entry.seatIndex === mySeatIndex.value,
+  )
+  return player != null && isStoodUp(player)
+})
 
 const tableMaxSeats = computed(() => {
   const room = rooms.value.find((item) => item.roomId === currentRoomId.value)
@@ -89,6 +100,7 @@ onMounted(() => {
       :username="username"
       :session-token="sessionToken"
       :show-back="authenticated && inTable && !!tableSnapshot"
+      :back-enabled="canLeaveToLobby"
       @connect="connect"
       @disconnect="disconnect"
       @back-to-lobby="backToLobby"

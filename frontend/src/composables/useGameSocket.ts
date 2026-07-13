@@ -5,7 +5,7 @@ import {
   type ActionName,
   initGameProtocol,
 } from '../proto/gameProtocol'
-import { parseTableSnapshot, parseShowdownResult, type ShowdownResult, type TableSnapshot } from '../types/table'
+import { parseTableSnapshot, parseShowdownResult, isStoodUp, type ShowdownResult, type TableSnapshot } from '../types/table'
 
 export interface RoomInfo {
   roomId: string
@@ -377,7 +377,8 @@ export function useGameSocket() {
     const roomId = options.roomId ?? currentRoomId.value
     const seatIndex =
       options.seatIndex !== undefined ? options.seatIndex : mySeatIndex.value
-    const amount = actionName === 'RAISE' ? (options.amount ?? 0) : 0
+    const amount =
+      actionName === 'RAISE' || actionName === 'REBUY' ? (options.amount ?? 0) : 0
 
     const payload: Record<string, unknown> = {
       actionType: ACTION_MAP[actionName],
@@ -512,10 +513,20 @@ export function useGameSocket() {
     inTable.value = false
     tableSnapshot.value = null
     mySeatIndex.value = -1
+    currentRoomId.value = ''
     localStorage.removeItem(SEAT_STORAGE_KEY)
+    localStorage.removeItem(ROOM_STORAGE_KEY)
   }
 
-  function backToLobby() {
+  async function backToLobby() {
+    const player = tableSnapshot.value?.players.find(
+      (entry) => entry.seatIndex === mySeatIndex.value,
+    )
+    if (!player || !isStoodUp(player)) {
+      appendLog('[提示] 请先起身后再返回大厅')
+      return
+    }
+    await sendAction('LEAVE_TABLE')
     leaveTable()
     refreshRoomList()
   }

@@ -24,6 +24,8 @@ public class Player implements Serializable {
     private boolean willRebuy;
     /** 起身占座：仍占座位，但不进入新牌局，直到再次坐下 */
     private boolean stoodUp;
+    /** 起身锁定的筹码（从 chips 划入；坐下时解锁回 chips） */
+    private int lockedChips;
 
     public Player (String userId,String username,int chips){
         this.userId = userId;
@@ -36,6 +38,7 @@ public class Player implements Serializable {
         this.isReady = false;
         this.willRebuy = true;
         this.stoodUp = false;
+        this.lockedChips = 0;
         this.currentBet = 0;
         this.handContribution = 0;
         this.isActive = chips > 0;
@@ -110,6 +113,30 @@ public class Player implements Serializable {
         this.chips += amount;
     }
 
+    /** 起身：将可用筹码划入锁定 */
+    public void lockChips() {
+        if (this.chips <= 0) {
+            return;
+        }
+        this.lockedChips += this.chips;
+        this.chips = 0;
+    }
+
+    /** 再次坐下：解锁筹码回可用 */
+    public void unlockChips() {
+        this.chips += this.lockedChips;
+        this.lockedChips = 0;
+    }
+
+    public int getLockedChips() {
+        return lockedChips;
+    }
+
+    /** 座位展示用总筹码（可用 + 锁定） */
+    public int getTotalStack() {
+        return chips + lockedChips;
+    }
+
     public int getSessionBuyIn() {
         return sessionBuyIn;
     }
@@ -118,9 +145,9 @@ public class Player implements Serializable {
         this.sessionBuyIn += amount;
     }
 
-    /** 本场盈亏：当前筹码减去累计买入 */
+    /** 本场盈亏：可用筹码 + 锁定筹码 - 累计买入 */
     public int getSessionProfit() {
-        return chips - sessionBuyIn;
+        return chips + lockedChips - sessionBuyIn;
     }
 
     public int getHandContribution() {
@@ -146,6 +173,10 @@ public class Player implements Serializable {
 
     public boolean isAllIn() {
         return isAllIn;
+    }
+
+    public void setAllIn(boolean allIn) {
+        isAllIn = allIn;
     }
 
     /** 局内筹码归零时补齐全下标记，避免 isAllIn 与 chips 不一致卡住行动轮 */

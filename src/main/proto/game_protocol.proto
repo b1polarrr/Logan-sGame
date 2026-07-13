@@ -30,6 +30,7 @@ enum ActionType {
   DECLINE_REBUY = 12; // 稍后再说（放弃本轮补码询问）
   STAND_UP = 13;      // 起身：占座旁观（局间，或局内已弃牌/未参与），不进入下一局，直到再次坐下
   LOGIN = 14;         // 账号登录（user_id + password；不自动建号）
+  LEAVE_TABLE = 15;   // 返回大厅：仅起身状态可离座；座位清空，本场盈亏保留
 }
 
 // 2. 客户端操作请求包裹
@@ -123,9 +124,18 @@ message PlayerState {
   reserved 7, 13;
   bool is_online = 8;
   repeated string hole_cards = 9; // 底牌（注意：为了防作弊，非本人手牌后端发空字符串）
-  int32 session_profit = 10;      // 本场盈亏 = 当前筹码 - 累计买入
+  int32 session_profit = 10;      // 本场盈亏 = (可用筹码 + 锁定筹码) - 累计买入
   bool is_ready = 11;             // 是否已准备（局间等待时使用）
   bool will_rebuy = 12;           // 是否补码（询问意愿；询问后选稍后再说为 false，补码后为 true）
+  int32 locked_chips = 14;        // 起身锁定的筹码（可用 chips 为 0）
+}
+
+// 已离座玩家的本场盈亏（座位已空，面板仍展示）
+message SessionProfitEntry {
+  string user_id = 1;
+  string username = 2;
+  int32 session_profit = 3;
+  int32 last_seat_index = 4;
 }
 
 // 4. 服务器广播给所有人的完整牌桌快照（全场同步的核心）
@@ -139,6 +149,7 @@ message TableSnapshotResponse {
   repeated PlayerState players = 7;     // 全场所有座位上的玩家状态
   int32 small_blind_index = 8;
   int32 big_blind_index = 9;
+  repeated SessionProfitEntry departed_profits = 10; // 已离座仍保留的本场盈亏
 }
 
 

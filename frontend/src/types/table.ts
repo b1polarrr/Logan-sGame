@@ -12,6 +12,14 @@ export interface PlayerState {
   sessionProfit: number
   isReady: boolean
   willRebuy: boolean
+  lockedChips: number
+}
+
+export interface DepartedProfitEntry {
+  userId: string
+  username: string
+  sessionProfit: number
+  lastSeatIndex: number
 }
 
 export interface TableSnapshot {
@@ -24,6 +32,7 @@ export interface TableSnapshot {
   currentTurnIndex: number
   communityCards: string[]
   players: PlayerState[]
+  departedProfits: DepartedProfitEntry[]
 }
 
 export interface ShowdownPlayerResult {
@@ -95,6 +104,11 @@ export function isStoodUp(player: PlayerState): boolean {
   return player.handStatus === 'STOOD_UP'
 }
 
+/** 座位展示用总筹码（可用 + 锁定） */
+export function totalStack(player: PlayerState): number {
+  return player.chips + (player.lockedChips ?? 0)
+}
+
 function parseShowdownPlayer(raw: Record<string, unknown>): ShowdownPlayerResult {
   const holeCards = raw.holeCards
   return {
@@ -119,6 +133,15 @@ export function parseShowdownResult(raw: Record<string, unknown>): ShowdownResul
   }
 }
 
+function parseDepartedProfit(raw: Record<string, unknown>): DepartedProfitEntry {
+  return {
+    userId: String(raw.userId ?? ''),
+    username: String(raw.username ?? ''),
+    sessionProfit: Number(raw.sessionProfit ?? 0),
+    lastSeatIndex: Number(raw.lastSeatIndex ?? raw.last_seat_index ?? -1),
+  }
+}
+
 function parsePlayerState(raw: Record<string, unknown>): PlayerState {
   const holeCards = raw.holeCards
   return {
@@ -133,11 +156,13 @@ function parsePlayerState(raw: Record<string, unknown>): PlayerState {
     sessionProfit: Number(raw.sessionProfit ?? 0),
     isReady: Boolean(raw.isReady ?? raw.is_ready),
     willRebuy: Boolean(raw.willRebuy ?? raw.will_rebuy ?? true),
+    lockedChips: Number(raw.lockedChips ?? raw.locked_chips ?? 0),
   }
 }
 
 export function parseTableSnapshot(raw: Record<string, unknown>): TableSnapshot {
   const players = raw.players
+  const departedProfits = raw.departedProfits ?? raw.departed_profits
   return {
     roomId: String(raw.roomId ?? ''),
     pot: Number(raw.pot ?? 0),
@@ -151,6 +176,9 @@ export function parseTableSnapshot(raw: Record<string, unknown>): TableSnapshot 
       : [],
     players: Array.isArray(players)
       ? players.map((player) => parsePlayerState(player as Record<string, unknown>))
+      : [],
+    departedProfits: Array.isArray(departedProfits)
+      ? departedProfits.map((entry) => parseDepartedProfit(entry as Record<string, unknown>))
       : [],
   }
 }

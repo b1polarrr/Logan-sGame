@@ -84,26 +84,39 @@ public class GameManager {
     }
 
     /**
-     * 补充筹码：仅当当前筹码为 0 时允许。
+     * 补充筹码：仅当可用与锁定筹码均为 0 时允许。
+     * 局间：到账后可参与下一局；局内且已出局/未参与：到账但本手不入局。
      */
     public void playerRebuy(int seatIndex, int amount) {
-        if (table.getCurrentTurnIndex() >= 0) {
-            throw new IllegalStateException("局进行中无法补码");
-        }
         Player player = table.getSeats()[seatIndex];
         if (player == null) {
             throw new IllegalStateException("座位无人");
         }
-        if (player.getChips() > 0) {
+        if (player.isStoodUp()) {
+            throw new IllegalStateException("起身状态无法补码，请先坐下");
+        }
+        if (player.getChips() > 0 || player.getLockedChips() > 0) {
             throw new IllegalStateException("仍有筹码，无需补充");
         }
         if (amount <= 0) {
             throw new IllegalArgumentException("补充金额须大于 0");
         }
+        boolean handInProgress = table.getCurrentTurnIndex() >= 0;
+        if (handInProgress && player.isActive() && !player.isFolded()) {
+            throw new IllegalStateException("仍在本局中，无法补码");
+        }
         player.addChips(amount);
         player.addSessionBuyIn(amount);
         player.setWillRebuy(true);
-        player.applyBetweenHandsRebuy();
+        player.setAllIn(false);
+        if (handInProgress) {
+            // 筹码先到账；已弃牌保持 FOLDED 展示，旁观保持未参与至下一手
+            if (!player.isFolded()) {
+                player.setActive(false);
+            }
+        } else {
+            player.applyBetweenHandsRebuy();
+        }
     }
 
     /**
@@ -114,7 +127,7 @@ public class GameManager {
         if (player == null) {
             throw new IllegalStateException("座位无人");
         }
-        if (player.getChips() > 0) {
+        if (player.getChips() > 0 || player.getLockedChips() > 0) {
             throw new IllegalStateException("仍有筹码，无需处理补码");
         }
         if (!player.isWillRebuy()) {
@@ -139,6 +152,7 @@ public class GameManager {
             throw new IllegalStateException("仍在本局中，无法起身");
         }
         player.setStoodUp(true);
+        player.lockChips();
         player.setReady(false);
         player.setActive(false);
     }
@@ -158,8 +172,24 @@ public class GameManager {
             throw new IllegalStateException("当前不是起身状态");
         }
         player.setStoodUp(false);
+        player.unlockChips();
         player.setReady(false);
         player.setActive(player.getChips() > 0);
+    }
+
+    /**
+     * 起身后返回大厅：记录本场盈亏并清空座位。
+     */
+    public void playerLeaveTable(int seatIndex) {
+        Player player = table.getSeats()[seatIndex];
+        if (player == null) {
+            throw new IllegalStateException("座位无人");
+        }
+        if (!player.isStoodUp()) {
+            throw new IllegalStateException("请先起身后再返回大厅");
+        }
+        table.recordDepartedProfit(player);
+        table.standUp(seatIndex);
     }
 
     public boolean canStartNewHand() {

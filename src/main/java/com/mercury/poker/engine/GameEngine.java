@@ -40,6 +40,9 @@ public interface GameEngine {
     /** 起身后再次坐下，恢复参与牌局 */
     void playerSitBack(int seatIndex);
 
+    /** 起身后返回大厅：清空座位，本场盈亏写入已离座列表 */
+    void playerLeaveTable(int seatIndex);
+
     /** 是否可开新局（至少两人有筹码且当前无进行中的手牌） */
     boolean canStartNewHand();
 

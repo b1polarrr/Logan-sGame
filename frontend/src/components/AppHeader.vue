@@ -5,6 +5,7 @@ defineProps<{
   username?: string
   sessionToken?: string
   showBack?: boolean
+  backEnabled?: boolean
 }>()
 
 defineEmits<{
@@ -37,7 +38,13 @@ defineEmits<{
       </div>
 
       <template v-if="showBack">
-        <button type="button" class="btn btn-ghost" @click="$emit('backToLobby')">
+        <button
+          type="button"
+          class="btn btn-ghost"
+          :disabled="backEnabled === false"
+          :title="backEnabled === false ? '请先起身后再返回大厅' : undefined"
+          @click="$emit('backToLobby')"
+        >
           返回大厅
         </button>
       </template>
@@ -184,5 +191,14 @@ defineEmits<{
 
 .btn-ghost:hover {
   background: rgba(255, 255, 255, 0.1);
+}
+
+.btn-ghost:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-ghost:disabled:hover {
+  background: rgba(255, 255, 255, 0.06);
 }
 </style>

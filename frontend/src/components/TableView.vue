@@ -12,7 +12,7 @@ import { resolveBlindSeatIndices } from '../utils/blinds'
 //   unlockAudio,
 // } from '../composables/useSoundEffects'
 import type { PlayerState, ShowdownResult, TableSnapshot } from '../types/table'
-import { isAllIn, isFolded, isParticipating, isStoodUp } from '../types/table'
+import { isAllIn, isFolded, isParticipating, isStoodUp, totalStack } from '../types/table'
 
 const props = defineProps<{
   connected: boolean
@@ -198,22 +198,27 @@ const showRebuyModal = computed(
     !props.showdownResult,
 )
 
-/** 无筹码且不在本局内（含「下把玩」旁观） */
+/** 无筹码且不在本局内（含「下把玩」旁观）；起身锁定中不可补码 */
 const needsRebuy = computed(
   () =>
     isSeated.value &&
     myPlayer.value != null &&
+    !isStoodUp(myPlayer.value) &&
     myPlayer.value.chips === 0 &&
+    (myPlayer.value.lockedChips ?? 0) === 0 &&
     !amStillInHand.value,
 )
 
-/** 局间才可实际补码（与后端 currentTurnIndex < 0 一致） */
-const canManualRebuy = computed(
-  () =>
-    needsRebuy.value &&
-    props.snapshot.currentTurnIndex < 0 &&
-    !props.showdownResult,
-)
+/** 局间，或局内已出局/未参与时可补码（与后端一致） */
+const canManualRebuy = computed(() => {
+  if (!needsRebuy.value || myPlayer.value == null) {
+    return false
+  }
+  if (props.snapshot.currentTurnIndex < 0 && !props.showdownResult) {
+    return true
+  }
+  return isFolded(myPlayer.value) || !isParticipating(myPlayer.value)
+})
 
 const showRebuyButton = computed(() => needsRebuy.value)
 
@@ -234,9 +239,26 @@ function isRebuyDeferredForSeat(seatIndex: number): boolean {
   return true
 }
 
-const profitRows = computed(() =>
-  [...props.snapshot.players].sort((left, right) => left.seatIndex - right.seatIndex),
-)
+const profitRows = computed(() => {
+  const seated = props.snapshot.players.map((player) => ({
+    key: 'seat-' + player.seatIndex,
+    username: player.username,
+    sessionProfit: player.sessionProfit,
+    seatIndex: player.seatIndex,
+    departed: false,
+  }))
+  const seatedUserIds = new Set(props.snapshot.players.map((player) => player.userId))
+  const departed = (props.snapshot.departedProfits ?? [])
+    .filter((entry) => entry.userId && !seatedUserIds.has(entry.userId))
+    .map((entry) => ({
+      key: 'departed-' + entry.userId,
+      username: entry.username,
+      sessionProfit: entry.sessionProfit,
+      seatIndex: entry.lastSeatIndex,
+      departed: true,
+    }))
+  return [...seated, ...departed].sort((left, right) => left.seatIndex - right.seatIndex)
+})
 
 const winnerSeatIndices = computed(() => {
   if (!props.showdownResult) {
@@ -543,7 +565,7 @@ function shouldShowCards(player: TableSnapshot['players'][0] | null, seatIndex: 
           type="button"
           class="profit-rebuy-btn"
           :disabled="!connected || !canManualRebuy"
-          :title="canManualRebuy ? undefined : (showdownResult ? '摊牌结束后可补码' : '本局结束后可补码')"
+          :title="canManualRebuy ? undefined : (showdownResult ? '摊牌结束后可补码' : '出局或局间后可补码')"
           @click.stop="emit('rebuy', buyInAmount)"
         >
           补码
@@ -551,14 +573,17 @@ function shouldShowCards(player: TableSnapshot['players'][0] | null, seatIndex: 
       </div>
       <ul v-show="profitExpanded" class="profit-list">
         <li
-          v-for="player in profitRows"
-          :key="'profit-' + player.seatIndex"
+          v-for="row in profitRows"
+          :key="row.key"
           class="profit-row"
-          :class="{ 'is-me': player.seatIndex === mySeatIndex }"
+          :class="{ 'is-me': !row.departed && row.seatIndex === mySeatIndex, departed: row.departed }"
         >
-          <span class="profit-name">{{ player.username }}</span>
-          <span class="profit-value" :class="profitClass(player.sessionProfit)">
-            {{ formatProfit(player.sessionProfit) }}
+          <span class="profit-name">
+            {{ row.username }}
+            <span v-if="row.departed" class="profit-departed-tag">已离座</span>
+          </span>
+          <span class="profit-value" :class="profitClass(row.sessionProfit)">
+            {{ formatProfit(row.sessionProfit) }}
           </span>
         </li>
       </ul>
@@ -690,7 +715,9 @@ function shouldShowCards(player: TableSnapshot['players'][0] | null, seatIndex: 
 
     <footer class="action-footer">
       <div v-if="myPlayer" class="my-chips">
-        我的筹码 <strong>{{ formatChips(myPlayer.chips, bigBlind) }}</strong>
+        我的筹码
+        <strong>{{ formatChips(totalStack(myPlayer), bigBlind) }}</strong>
+        <span v-if="(myPlayer.lockedChips ?? 0) > 0" class="chips-locked-tag">锁定</span>
       </div>
 
       <div v-if="!isSeated" class="sit-hint">
@@ -994,6 +1021,16 @@ function shouldShowCards(player: TableSnapshot['players'][0] | null, seatIndex: 
   color: #3498db;
 }
 
+.profit-row.departed .profit-name {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.profit-departed-tag {
+  margin-left: 4px;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.35);
+}
+
 .profit-name {
   color: rgba(255, 255, 255, 0.75);
   overflow: hidden;
@@ -1212,6 +1249,16 @@ function shouldShowCards(player: TableSnapshot['players'][0] | null, seatIndex: 
 .my-chips strong {
   color: #3498db;
   font-size: 15px;
+}
+
+.chips-locked-tag {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  color: #f39c12;
+  background: rgba(243, 156, 18, 0.15);
+  border: 1px solid rgba(243, 156, 18, 0.35);
 }
 
 .sit-hint {
