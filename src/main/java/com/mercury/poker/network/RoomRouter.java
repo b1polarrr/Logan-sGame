@@ -325,10 +325,15 @@ public class RoomRouter {
             throw new IllegalStateException("座位 " + seatIndex + " 已有人");
         }
         Player player = new Player(session.getUserId(), session.getUsername(), DEFAULT_BUY_IN);
+        // 局中入座：旁观本手（无底牌、不进结算），下一局 resetForNewHand 后再参与
+        if (gameEngine.isHandInProgress()) {
+            player.setActive(false);
+        }
         table.sitDown(player, seatIndex);
         SessionManager.getINSTANCE().sitDown(ctx.channel(), seatIndex);
         clearAllReady(table);
-        System.out.println("玩家 " + session.getUsername() + " 坐到座位 " + seatIndex);
+        System.out.println("玩家 " + session.getUsername() + " 坐到座位 " + seatIndex
+                + (gameEngine.isHandInProgress() ? "（本手旁观）" : ""));
         markEmptyState(table.getRoomId(), gameEngine);
         RedisRoomRegistry.getINSTANCE().updateSeatedCount(
                 table.getRoomId(),

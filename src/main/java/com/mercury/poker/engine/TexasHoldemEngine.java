@@ -39,6 +39,11 @@ public class TexasHoldemEngine implements GameEngine {
     }
 
     @Override
+    public boolean isHandInProgress() {
+        return gameManager.isHandInProgress();
+    }
+
+    @Override
     public HandShowdownResult consumePendingShowdown() {
         return gameManager.consumePendingShowdown();
     }

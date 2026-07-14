@@ -83,6 +83,25 @@ public class GameManager {
         return false;
     }
 
+    /** 本手是否仍在进行（含行动中、跑牌、待摊牌；局中入座应旁观） */
+    public boolean isHandInProgress() {
+        if (pendingShowdown != null || awaitingRunoutShowdown) {
+            return true;
+        }
+        if (table.getCurrentTurnIndex() >= 0) {
+            return true;
+        }
+        if (!table.getCommunityCards().isEmpty()) {
+            return true;
+        }
+        for (Player player : table.getSeats()) {
+            if (player != null && !player.getHoleCards().isEmpty()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * 补充筹码：仅当可用与锁定筹码均为 0 时允许。
      * 局间：到账后可参与下一局；局内且已出局/未参与：到账但本手不入局。
@@ -290,7 +309,12 @@ public class GameManager {
             table.addCommunityCard(table.getDeck().deal());
         }
 
-        table.setCurrentTurnIndex(getNextSeatCanAct(table.getDealerIndex()));
+        // 仅 0/1 人还能行动（其余全下）时无需再下注，不把行动权交给幸存者
+        if (bettingActionStillRequired()) {
+            table.setCurrentTurnIndex(getNextSeatCanAct(table.getDealerIndex()));
+        } else {
+            table.setCurrentTurnIndex(-1);
+        }
         lastAggressorIndex = table.getDealerIndex();
     }
 
@@ -602,6 +626,28 @@ public class GameManager {
         return p != null && p.isActive() && !p.isFolded() && !p.isAllIn() && p.getChips() > 0;
     }
 
+    /**
+     * 是否仍需要有人跟注/弃牌/加注。
+     * 全员全下，或仅一人有筹码且已跟平（新街 maxBet=0）时，不再需要行动，应跑牌。
+     */
+    private boolean bettingActionStillRequired() {
+        int canActCount = 0;
+        Player soleActor = null;
+        for (Player player : table.getSeats()) {
+            if (canAct(player)) {
+                canActCount++;
+                soleActor = player;
+            }
+        }
+        if (canActCount == 0) {
+            return false;
+        }
+        if (canActCount == 1) {
+            return soleActor.getCurrentBet() < table.getCurrentMaxBet();
+        }
+        return true;
+    }
+
     private void normalizePlayerStates() {
         for (Player player : table.getSeats()) {
             if (player != null) {
@@ -621,6 +667,10 @@ public class GameManager {
             if (table.getCurrentTurnIndex() < 0) {
                 break;
             }
+            if (!bettingActionStillRequired()) {
+                checkRoundOrHandOver(table.getCurrentTurnIndex());
+                break;
+            }
             int turnIndex = table.getCurrentTurnIndex();
             Player turnPlayer = table.getSeats()[turnIndex];
             if (turnPlayer != null && canAct(turnPlayer)) {
@@ -634,7 +684,7 @@ public class GameManager {
         if (pendingShowdown == null
                 && table.getCommunityCards().size() >= 5
                 && countPlayerInHand() > 1
-                && getNextSeatCanAct(table.getDealerIndex()) == -1) {
+                && !bettingActionStillRequired()) {
             settleHand();
         }
     }
@@ -656,7 +706,7 @@ public class GameManager {
         }
     }
 
-    /** 全员无法行动时是否还需继续跑牌（公牌未满且尚未摊牌） */
+    /** 全员无法行动，或仅一人有筹码且无需再跟注时，继续跑公牌 */
     public boolean needsRunout() {
         if (pendingShowdown != null || awaitingRunoutShowdown) {
             return false;
@@ -667,7 +717,7 @@ public class GameManager {
         if (countPlayerInHand() <= 1) {
             return false;
         }
-        return getNextSeatCanAct(table.getDealerIndex()) == -1;
+        return !bettingActionStillRequired();
     }
 
     /**
@@ -744,13 +794,25 @@ public class GameManager {
             settleHand();
             return;
         }
-        //2.下注轮结束：所有人跟平，且本街能行动的玩家都已行动
+        //2.全员全下，或仅一人有筹码且已跟平 → 进街/跑牌（不要求幸存者过牌）
+        if (!bettingActionStillRequired()) {
+            if (table.getCommunityCards().size() >= 5) {
+                settleHand();
+            } else if (isBettingRoundComplete()) {
+                advanceToNextStreetOrShowdown();
+            } else {
+                advanceRunoutStreet();
+            }
+            return;
+        }
+        //3.下注轮结束：所有人跟平，且本街能行动的玩家都已行动
         if (isBettingRoundComplete() && allActedThisRound()) {
             advanceToNextStreetOrShowdown();
             return;
         }
-        //3.无人能行动（如双方不同筹码全下）→ 跑牌或河牌圈直接摊牌
-        if (getNextSeatCanAct(actedSeatIndex) == -1){
+        //4.下一个能行动的玩家
+        int nextTurn = getNextSeatCanAct(actedSeatIndex);
+        if (nextTurn < 0) {
             if (table.getCommunityCards().size() >= 5) {
                 settleHand();
             } else {
@@ -758,8 +820,6 @@ public class GameManager {
             }
             return;
         }
-        //4.下一个能行动的玩家
-        int nextTurn = getNextSeatCanAct(actedSeatIndex);
         table.setCurrentTurnIndex(nextTurn);
     }
 
